@@ -1,0 +1,5 @@
+# WSS only. Configure a TLS reverse proxy on the OrionBot host.
+endpoint: 'wss://link.example.com/orionlink'
+server-id: 'survival'
+# Generate a random 32-byte or longer secret; never commit the real value.
+secret: ''

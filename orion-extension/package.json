@@ -1,0 +1,1 @@
+{"name":"orionlink-extension","version":"0.1.0","private":true,"main":"extension.js","type":"commonjs","engines":{"node":">=22"},"scripts":{"test":"node --test"},"dependencies":{"discord.js":"^14.26.4","ws":"^8.18.3"}}

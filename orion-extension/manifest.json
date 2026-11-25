@@ -1,0 +1,1 @@
+{"id":"orionlink","name":"OrionLink — Minecraft account linking","version":"0.1.0","main":"extension.js","description":"Development preview of Minecraft to Discord role synchronization","hotToggle":true,"defaultEnabled":false,"interactionPrefix":"ol:"}

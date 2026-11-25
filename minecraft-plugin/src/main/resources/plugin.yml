@@ -1,0 +1,12 @@
+name: OrionLink
+version: 0.1.0-SNAPSHOT
+main: dev.orionlink.OrionLink
+api-version: '26.3'
+depend: [LuckPerms]
+commands:
+  link:
+    description: Generate a Discord verification code
+    permission: orionlink.link
+permissions:
+  orionlink.link:
+    default: true
