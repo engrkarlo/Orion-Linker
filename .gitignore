@@ -1,7 +1,0 @@
-node_modules/
-target/
-.env
-links.json
-links.json.tmp
-config.json
-*.jar
