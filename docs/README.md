@@ -4,6 +4,7 @@ Use the guide for your role. The development plan is a historical specification,
 
 | Guide | Audience | Contents |
 | --- | --- | --- |
+| [Complete configuration setup](configuration-setup.md) | Server owners | Every YAML option, where to get credentials and values, exact setup order and verification checks |
 | [Installation & setup](installation.md) | Server owners | Requirements, Pterodactyl HTTPS, pairing, enablement, upgrades, legacy Push |
 | [Player linking](player-linking.md) | All players | Java/Bedrock, AuthMe, reconnect, appeal, player commands |
 | [Commands & permissions](commands.md) | Players and staff | Minecraft commands, console recovery, Discord commands and authorization |

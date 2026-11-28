@@ -10,6 +10,7 @@ OrionBridge is the Minecraft-side Paper plugin for OrionBot. Its Discord control
 
 | I want to… | Guide |
 | --- | --- |
+| Configure every YAML file and find all keys | [Complete step-by-step configuration setup](docs/configuration-setup.md) |
 | Install, update or pair the plugin | [Installation & setup](docs/installation.md) |
 | Link my Minecraft and Discord accounts | [Player guide](docs/player-linking.md) |
 | Find commands and permissions | [Commands & permissions](docs/commands.md) |
@@ -26,7 +27,7 @@ OrionBridge is the Minecraft-side Paper plugin for OrionBot. Its Discord control
 2. On your Minecraft host, allocate a spare port and configure a public HTTPS reverse proxy to that port. Use Pull mode; the bot host does not need a new inbound port.
 3. In `config.yml`, set `mode: pull`, `bind: "0.0.0.0"` and your allocated `port`. Keep the existing token or let the plugin generate one on first start.
 4. In Discord, run `/mcserver manage` → select your Java server → OrionBridge → Configure Pull. Enter the HTTPS origin and token privately.
-5. Test telemetry first. Follow [the security setup](docs/installation.md#enable-identity-and-security) before enabling mandatory verification or other enforcement features.
+5. Test telemetry first. Follow [the step-by-step configuration setup](docs/configuration-setup.md) before enabling mandatory verification or other enforcement features.
 
 ## What players do
 

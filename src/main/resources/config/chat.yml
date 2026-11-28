@@ -27,4 +27,4 @@ chat:
 # What to expect: bot/webhook messages are ignored, mentions are suppressed on
 # relayed Discord messages, and supported local mutes/suspensions restrict relay.
 # Queues are bounded; old chat may expire during an outage or heavy traffic.
-# Chat is not a permanent transcript. Prefixes are currently fixed.
+# Chat is not a permanent transcript. In-game prefixes are customizable in messages.yml; Discord-side prefixes are currently fixed in OrionBot.

@@ -1,5 +1,7 @@
 # Installation & setup
 
+For a guided walkthrough of every file and the exact source of keys, IDs, roles and other values, start with [Complete configuration setup](configuration-setup.md).
+
 [Documentation index](README.md) · [Commands](commands.md) · [Configuration](configuration.md)
 
 ## Installation
@@ -65,7 +67,7 @@ skinsrestorer-fallback: true
 
 Set the port to your own allocation. Leave `endpoint` empty in Pull mode. If a token already exists, keep it rather than clearing it unless you intend to rotate it.
 
-Save the file and run `/ob reload` in Minecraft, or `ob reload` in the server console. When the Pull token is blank, OrionBridge generates a secure 64-character token and writes it to the config file. Reopen the file and copy that token privately.
+Save the file and run `/ob reload` in Minecraft, or `ob reload` in the server console. On initial startup with a blank Pull token, OrionBridge generates a secure 64-character token and writes it to the config file. Do not clear an active token during reload. Reopen the file and copy that token privately.
 
 ### 3. Connect OrionBot
 
@@ -90,7 +92,7 @@ The console startup summary credits Karlow and shows the active mode, collection
 
 Use `/ob reload` after editing any OrionBridge settings, category files, messages or menus. It requires `orionbridge.reload` (operators by default). Reload validates settings; presentation-only changes retain live services. Feature changes replace the local runtime and require fresh signed authorization. Busy requests defer reload; previous settings are restored if initialization fails, when possible. Installing a new JAR still requires a server restart.
 
-For Pull, clear or replace the token in Minecraft's config, reload, reopen the file and update the token in Discord. Disconnecting in Discord removes the bot's configuration but does not invalidate the plugin's token; rotate it on Minecraft to revoke old clients. Never post tokens in Discord or share screenshots that reveal them.
+For intentional Pull token rotation, replace the token with a securely generated 64-character lowercase hexadecimal value in Minecraft's config, reload, and update the token in Discord. A blank token is generated on initial startup, not accepted as a replacement during a live reload. Disconnecting in Discord removes the bot's configuration but does not invalidate the plugin's token; rotate it on Minecraft to revoke old clients. Never post tokens in Discord or share screenshots that reveal them.
 
 
 ## Alternative setup: Push mode

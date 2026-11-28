@@ -18,7 +18,7 @@
 | `/ob staffchat <message>` | Verified authorized staff | Private relay, not granted by edit-only task |
 | `/ob admin` | Verified trusted staff with explicit GUI permission and lockdown-bypass profile | Administrator dashboard |
 | `/ob status` | `orionbridge.admin` | Local service diagnostics |
-| `/ob reload` | `orionbridge.reload`; Guard also requires `orionbridge:ob-reload` in player's trusted profile | Telemetry settings only |
+| `/ob reload` | `orionbridge.reload`; Guard also requires `orionbridge:ob-reload` in player's trusted profile | Reload all configuration, messages and menu files |
 
 ## Bukkit permission nodes
 
@@ -38,9 +38,9 @@ There is no OP bypass of mandatory verification. A staff profile relaxes only Or
 | `ob status` | Diagnose initialized services |
 | `ob reload` | reloads all configuration, messages and menus|
 | `ob lockdown <minutes or off>` | Set (1–60 minutes) or clear durable Guard lockdown |
-| `ob verification-off` | Disable verification gate until restart |
+| `ob verification-off` | Disable verification gate until reload or restart |
 
-Use the server console rather than a player command when testing emergency recovery. Correct configuration and restart after recovering; console break-glass is not an account link.
+Use the server console rather than a player command when testing emergency recovery. Correct configuration and reload or restart after recovering; console break-glass is not an account link.
 
 ## Discord commands
 
