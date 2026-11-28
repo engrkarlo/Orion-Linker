@@ -23,21 +23,22 @@ final class SetupConfig {
         match(b,"control.signing-key",c.control());match(n,"correlation.guild-key",c.network());
         return new Plan(a,b,n);
     }
-    static void provision(Path dir,SetupRequest.Credentials c)throws Exception{
+    static void provision(Path dir,SetupRequest.Credentials c)throws Exception{provision(dir,c,false);}
+    static void provision(Path dir,SetupRequest.Credentials c,boolean autoRealm)throws Exception{
         if(Files.exists(journal(dir),LinkOption.NOFOLLOW_LINKS))throw new IOException("An approved setup is already pending; reload to recover it");
         var root=CategoryConfig.readRoot(dir);
         if(!"pull".equals(root.getString("mode"))||!c.distinct(root.getString("token","")))throw new IOException("Setup requires Pull and distinct credentials");
         var p=plan(dir,c);
         var j=new YamlConfiguration();
-        j.set("feature",c.feature());j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
+        j.set("auto-realm",autoRealm);j.set("feature",c.feature());j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
         // Only new services are automatically activated. Existing settings remain exactly as chosen.
         j.set("enable-audit",c.feature().equals("AUDIT"));
         j.set("enable-control",p.control().getString("control.signing-key","").isEmpty());
-        featurePlan(dir,c.feature()); // Validate all affected files before committing the intent.
+        featurePlan(dir,c.feature(),c.server(),autoRealm); // Validate all affected files before committing the intent.
         CategoryConfig.save(journal(dir),j);
         recover(dir);
     }
-    private static java.util.Map<String,YamlConfiguration> featurePlan(Path dir,String action)throws Exception{
+    private static java.util.Map<String,YamlConfiguration> featurePlan(Path dir,String action,String server,boolean autoRealm)throws Exception{
         if(action.equals("CREDENTIALS")||action.equals("AUDIT"))return java.util.Map.of();
         var v=CategoryConfig.read(dir.resolve("config/verification.yml"));
         var chat=CategoryConfig.read(dir.resolve("config/chat.yml"));
@@ -52,6 +53,7 @@ final class SetupConfig {
                 return java.util.Map.of("chat",chat);
             }
             case "LINK"->{
+                if(autoRealm)v.set("verification.authme-realm",AuthMeRealm.forSetup(v.getString("verification.authme-realm",""),server,true,true));
                 if(!active){v.set("verification.enabled",true);v.set("verification.setup-complete",true);v.set("verification.force",false);}
                 if(v.getBoolean("verification.lobby.enabled")&&!v.getBoolean("verification.force",true))throw new IOException("Disable the verification lobby before enabling optional linking");
                 return java.util.Map.of("verification",v);
@@ -80,7 +82,7 @@ final class SetupConfig {
         if(!"pull".equals(root.getString("mode"))||!c.distinct(root.getString("token","")))throw new IOException("Pending setup no longer matches connection");
         if(!j.isBoolean("enable-audit")||!j.isBoolean("enable-control"))throw new IOException("Invalid setup journal");
         var p=plan(dir,c);
-        var feature=featurePlan(dir,c.feature());
+        var feature=featurePlan(dir,c.feature(),c.server(),j.getBoolean("auto-realm",false));
         p.audit().set("audit.guild-id",c.guild());p.audit().set("audit.server-id",c.server());p.audit().set("audit.signing-key",c.audit());
         p.control().set("control.signing-key",c.control());p.correlation().set("correlation.guild-key",c.network());
         if(j.getBoolean("enable-audit"))p.audit().set("audit.enabled",true);

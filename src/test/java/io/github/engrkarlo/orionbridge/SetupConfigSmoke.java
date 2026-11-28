@@ -15,7 +15,7 @@ public final class SetupConfigSmoke {
             SetupConfig.provision(dir,credentials.apply("CREDENTIALS"));
             check(bool(dir.resolve("config/control.yml"),"control.enabled"));check(!bool(v,"verification.enabled"));
             SetupConfig.provision(dir,credentials.apply("CHAT"));check(bool(chat,"chat.enabled"));check(!bool(chat,"chat.require-link"));
-            SetupConfig.provision(dir,credentials.apply("LINK"));check(bool(v,"verification.enabled"));check(!bool(v,"verification.force"));
+            SetupConfig.provision(dir,credentials.apply("LINK"),true);check(CategoryConfig.read(v).getString("verification.authme-realm").equals("server-"+s));check(bool(v,"verification.enabled"));check(!bool(v,"verification.force"));
             SetupConfig.provision(dir,credentials.apply("FORCE"));check(bool(v,"verification.force"));
             SetupConfig.provision(dir,credentials.apply("LINK"));check(bool(v,"verification.force"));
             SetupConfig.provision(dir,credentials.apply("CHAT"));check(bool(v,"verification.force"));

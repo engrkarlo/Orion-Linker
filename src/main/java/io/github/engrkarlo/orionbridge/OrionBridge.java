@@ -194,6 +194,8 @@ public final class OrionBridge extends JavaPlugin {
     }
     private void validateDependencies(YamlConfiguration cfg,Settings settings){
         boolean pull=settings.mode().equals("pull");
+        String realm=cfg.getString("verification.authme-realm","");
+        if(!realm.isEmpty()&&!realm.matches("[a-z0-9_-]{1,32}"))throw new IllegalArgumentException("AuthMe realm must be 1–32 lowercase letters, digits, hyphens or underscores");
         if(cfg.getBoolean("verification.lobby.enabled")&&!forceRequested(cfg))throw new IllegalArgumentException("Verification lobby requires forced verification");
         if(verifyRequested(cfg)&&(!pull||!cfg.getBoolean("control.enabled")))throw new IllegalArgumentException("Verification requires Pull mode and signed control");
         if(cfg.getBoolean("chat.enabled")&&(!cfg.getBoolean("control.enabled")||!pull||cfg.getBoolean("chat.require-link",true)&&!verifyRequested(cfg)))throw new IllegalArgumentException("Chat requires Pull mode, signed control and, in linked-only mode, account linking");
@@ -393,16 +395,16 @@ public final class OrionBridge extends JavaPlugin {
                 var c=request.credentials();
                 if(!c.feature().equals("CREDENTIALS")){
                     if(activeConfig==null||control==null||!CategoryConfig.same(activeConfig,CategoryConfig.load(this)))throw new java.io.IOException("Finish credential setup and reload local edits before adding features");
-                    if(java.util.Set.of("LINK","FORCE").contains(c.feature())&&!getServer().getOnlineMode()&&activeConfig.getString("verification.authme-realm","").isBlank()&&!installed("floodgate"))
-                        throw new java.io.IOException("Offline Java needs a trusted AuthMe realm before linking");
+                    if(java.util.Set.of("LINK","FORCE").contains(c.feature())&&!getServer().getOnlineMode()&&!installed("AuthMe")&&!installed("floodgate"))
+                        throw new java.io.IOException("Offline Java requires AuthMe; Bedrock requires Floodgate");
                     if(c.feature().equals("ROLES")&&!installed("LuckPerms"))throw new java.io.IOException("Install LuckPerms before rank synchronization");
-                    if(c.feature().equals("GUARD")&&(verification==null||!verification.forced()||!installed("WorldEdit")&&!installed("FastAsyncWorldEdit")&&activeConfig.getBoolean("guard.enforce-worldedit",true)))throw new java.io.IOException("Test mandatory linking and review Guard/WorldEdit settings before enabling protection");
+                    if(c.feature().equals("GUARD")&&(verification==null||!verification.forced()))throw new java.io.IOException("Test mandatory linking and review Guard settings before enabling protection");
                     if(c.feature().equals("RECOVERY")&&!installed("CoreProtect"))throw new java.io.IOException("Install compatible CoreProtect before recovery");
                     if(c.feature().equals("FORCE")&&(verification==null||!verification.forced()&&getServer().getOnlinePlayers().stream().noneMatch(p->verification.authorized(p.getUniqueId()))))
                         throw new java.io.IOException("Test optional linking with an online authorized player before enforcing it");
                 }
                 String originalToken=session.settings.token();
-                SetupConfig.provision(getDataFolder().toPath(),c);
+                SetupConfig.provision(getDataFolder().toPath(),c,!getServer().getOnlineMode()&&installed("AuthMe"));
                 var result=reloadAll();
                 if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED&&originalToken.equals(session.settings.token()))setup.approve(request,originalToken,System.currentTimeMillis());
                 messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
