@@ -100,7 +100,7 @@ final class VerificationGate implements Listener,AutoCloseable {
             if(!lobby.restore(p,s.identity()))plugin.messages().send(p,"verification.return-unavailable");
         }else if(force)lobby.enter(p,s.identity());
         lastShown.put(p.getUniqueId(),now);
-        menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis()))show(p);},()->{if(same(p,s))p.closeInventory();});
+        menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());cachedSnapshot=null;plugin.signal("verification");show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis())){cachedSnapshot=null;plugin.signal("verification");show(p);}},()->{if(same(p,s))p.closeInventory();});
     }
     boolean playerCommand(Player p,String[] args){
         if(!active)return false;
@@ -119,7 +119,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){
-            long now=System.currentTimeMillis();var s=state.expireChallenge(p.getUniqueId(),now);if(s!=null&&s.request()==null)state.request(p.getUniqueId(),now);
+            long now=System.currentTimeMillis();var s=state.expireChallenge(p.getUniqueId(),now);if(s!=null&&s.request()==null){state.request(p.getUniqueId(),now);cachedSnapshot=null;plugin.signal("verification");}
             show(p);return true;
         }
         if(args.length==2&&args[0].equalsIgnoreCase("confirm")){
@@ -240,8 +240,8 @@ final class VerificationGate implements Listener,AutoCloseable {
         var s=state.get(p.getUniqueId());
         return resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
-    @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));cachedSnapshot=null;if(force)plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);cachedSnapshot=null;lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
+    @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));cachedSnapshot=null;plugin.signal("verification");if(force)plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);cachedSnapshot=null;plugin.signal("verification");lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e){if(restricted(e.getPlayer()))plugin.getServer().getScheduler().runTask(plugin,()->show(e.getPlayer()));}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(restricted(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);

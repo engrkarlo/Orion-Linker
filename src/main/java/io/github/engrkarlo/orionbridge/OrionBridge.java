@@ -71,7 +71,7 @@ public final class OrionBridge extends JavaPlugin {
     private volatile String setupStatus="{}";
     String setupStatus(){return setupStatus;}
     void signal(String lane){var current=session;if(current!=null&&current.pull!=null)current.pull.signal(lane);}
-    private void publishSetupStatus(){setupStatus="{\"audit\":"+(audit!=null)+",\"control\":"+(control!=null)+",\"linking\":"+(verification!=null)+",\"forced\":"+(verification!=null&&verification.forced())+",\"chat\":"+(chat!=null)+",\"chatRequireLink\":"+(chat==null||chat.requiresLink())+",\"guard\":"+(guard!=null)+",\"roles\":"+(roles!=null)+",\"recovery\":"+(recovery!=null)+"}";}
+    private void publishSetupStatus(){setupStatus="{\"transport\":"+quote(session==null||session.pull==null?"OFF":session.pull.transport())+",\"audit\":"+(audit!=null)+",\"control\":"+(control!=null)+",\"linking\":"+(verification!=null)+",\"forced\":"+(verification!=null&&verification.forced())+",\"chat\":"+(chat!=null)+",\"chatRequireLink\":"+(chat==null||chat.requiresLink())+",\"guard\":"+(guard!=null)+",\"roles\":"+(roles!=null)+",\"recovery\":"+(recovery!=null)+"}";}
     private OrionGuard retainedGuard;
     private record Settings(String mode, String transport, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
     private static final class Session {

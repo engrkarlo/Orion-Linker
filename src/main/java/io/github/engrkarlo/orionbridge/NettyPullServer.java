@@ -26,6 +26,7 @@ final class NettyPullServer implements AutoCloseable {
     @FunctionalInterface interface Dispatch{void handle(com.sun.net.httpserver.HttpExchange exchange)throws IOException;}
     private final EventLoopGroup loop;
     private final Channel listener;
+    private volatile Channel readySocket;
     private final AtomicReference<Channel> socket=new AtomicReference<>();
     private final Set<Channel> children=ConcurrentHashMap.newKeySet();
     private final AtomicInteger connections=new AtomicInteger();
@@ -51,10 +52,10 @@ final class NettyPullServer implements AutoCloseable {
     int port(){return ((InetSocketAddress)listener.localAddress()).getPort();}
     void signal(String lane){
         if(!Set.of("chat","verification","audit").contains(lane))return;
-        Channel ch=socket.get();if(ch==null||!ch.isActive()||!ch.isWritable())return;
+        Channel ch=readySocket;if(ch==null||!ch.isActive()||!ch.isWritable())return;
         long now=System.nanoTime(),previous=lastSignal.get();
         if(now-previous<100_000_000L||!lastSignal.compareAndSet(previous,now))return;
-        ch.eventLoop().execute(()->{if(ch.isActive()&&ch.isWritable()&&socket.get()==ch)ch.writeAndFlush(new TextWebSocketFrame("EVENT\n"+lane));});
+        try{ch.eventLoop().execute(()->{if(ch.isActive()&&ch.isWritable()&&readySocket==ch)ch.writeAndFlush(new TextWebSocketFrame("EVENT\n"+lane));});}catch(RejectedExecutionException ignored){}
     }
     private boolean authorized(String value){return value!=null&&MessageDigest.isEqual(authorization,value.getBytes(StandardCharsets.UTF_8));}
     private final class Handler extends SimpleChannelInboundHandler<Object>{
@@ -66,7 +67,7 @@ final class NettyPullServer implements AutoCloseable {
         }
         @Override public void channelInactive(ChannelHandlerContext ctx)throws Exception{
             if(counted){connections.decrementAndGet();children.remove(ctx.channel());}
-            socket.compareAndSet(ctx.channel(),null);super.channelInactive(ctx);
+            if(readySocket==ctx.channel())readySocket=null;socket.compareAndSet(ctx.channel(),null);super.channelInactive(ctx);
         }
         @Override public void userEventTriggered(ChannelHandlerContext ctx,Object event)throws Exception{
             if(event instanceof IdleStateEvent){ctx.close();return;}super.userEventTriggered(ctx,event);
@@ -81,7 +82,7 @@ final class NettyPullServer implements AutoCloseable {
                     if(!"orionbridge.v3".equals(request.headers().get(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL))||!socket.compareAndSet(null,ctx.channel())){http(ctx,409,new byte[0],null);return;}
                     var handshaker=new WebSocketServerHandshakerFactory("ws://localhost/v3/socket","orionbridge.v3",false,BridgeWire.MAX_FRAME).newHandshaker(request);
                     if(handshaker==null){socket.compareAndSet(ctx.channel(),null);http(ctx,426,new byte[0],null);return;}
-                    handshaker.handshake(ctx.channel(),request).addListener(f->{if(f.isSuccess())upgraded=true;else ctx.close();});
+                    handshaker.handshake(ctx.channel(),request).addListener(f->{if(f.isSuccess()){upgraded=true;readySocket=ctx.channel();}else ctx.close();});
                     return;
                 }
                 try{

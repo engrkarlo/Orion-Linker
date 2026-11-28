@@ -63,6 +63,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
         UUID id=UUID.randomUUID();
         String safe=detail.replaceAll("[\\p{Cntrl}]"," ");if(safe.length()>1000)safe=safe.substring(0,1000);
         journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+(identity==null?"null":OrionBridge.quote(identity))+",\"attribution\":"+OrionBridge.quote(attribution)+",\"targetIdentity\":"+(affected==null?"null":OrionBridge.quote(affected))+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":"+OrionBridge.quote(source)+"}");
+        plugin.signal("audit");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();ops.put(p.getUniqueId(),p.isOp());emit(p,"JOIN","Player joined: "+p.getName());}
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());identities.forget(p.getUniqueId());}
@@ -96,6 +97,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
                     if(fingerprint!=null){
                         UUID event=UUID.randomUUID();
                         journal.offer(event,"{\"id\":"+OrionBridge.quote(event.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":\"AUTHENTICATED_NETWORK\",\"identity\":"+OrionBridge.quote(identity)+",\"detail\":\"Authenticated Minecraft connection fingerprint\",\"source\":\"Paper\",\"fingerprint\":"+OrionBridge.quote(fingerprint)+"}");
+        plugin.signal("audit");
                     }
                 }
             }

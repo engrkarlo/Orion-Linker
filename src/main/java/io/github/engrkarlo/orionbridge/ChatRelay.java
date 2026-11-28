@@ -45,6 +45,7 @@ final class ChatRelay implements Listener,AutoCloseable {
         if(queue.size()>=512){queue.removeFirst();dropped.incrementAndGet();}
         String message=clean(text,500);if(message.isEmpty())return false;
         queue.addLast(new Message(UUID.randomUUID(),now,identity,clean(name,64),message,privateChat,linked));
+        plugin.signal("chat");
         return true;
     }
     private void expire(long now){
