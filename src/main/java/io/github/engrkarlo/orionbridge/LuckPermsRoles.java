@@ -14,11 +14,13 @@ import java.time.Instant;
  * Manual persistent and pre-existing transient memberships are untouched. */
 final class LuckPermsRoles implements AutoCloseable {
     private final LuckPerms api=LuckPermsProvider.get();
+    private final OrionBridge plugin;
     private final Set<String> groups,permissions;
     private final boolean offlineReconciliation;
     private final java.util.concurrent.Semaphore rankSlots=new java.util.concurrent.Semaphore(4);
     private final Map<UUID,Map<String,InheritanceNode>> owned=new HashMap<>();
-    LuckPermsRoles(YamlConfiguration cfg){
+    LuckPermsRoles(OrionBridge plugin,YamlConfiguration cfg){
+        this.plugin=plugin;
         offlineReconciliation=cfg.getBoolean("roles.offline-reconciliation",true);
         groups=Set.copyOf(cfg.getStringList("roles.allowed-groups"));
         permissions=Set.copyOf(cfg.getStringList("roles.allowed-permissions"));
@@ -27,17 +29,17 @@ final class LuckPermsRoles implements AutoCloseable {
         User user=api.getUserManager().getUser(uuid);
         return user==null?"":user.getPrimaryGroup();
     }
-    /** Signed, bounded queries for previously observed authenticated Java UUIDs.
+    /** Signed, bounded queries for previously observed authenticated Java and unlinked Floodgate identities.
      * Runs on the HTTP worker; LuckPerms storage loading is asynchronous. */
     String rankQuery(String body){
         if(!offlineReconciliation)return "{\"result\":\"DISABLED\"}";
         String[] requested=body.split("\\n",-1);
         if(requested.length<1||requested.length>4||new HashSet<>(Arrays.asList(requested)).size()!=requested.length)throw new IllegalArgumentException("Invalid rank query");
-        for(String id:requested)if(!SanctionState.validIdentity(id)||!id.startsWith("java:"))throw new IllegalArgumentException("Java identity required");
+        for(String id:requested)if(!SanctionState.validIdentity(id)||!(id.startsWith("java:")||id.startsWith("bedrock:")))throw new IllegalArgumentException("Java or Floodgate identity required");
         Map<String,java.util.concurrent.CompletableFuture<String>> queries=new LinkedHashMap<>();
         for(String id:requested){
-            String hex=id.substring(5);
-            UUID uuid=UUID.fromString(hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20));
+            UUID uuid=rankUuid(id);
+            if(uuid==null)continue;
             User cached=api.getUserManager().getUser(uuid);
             if(cached!=null){queries.put(id,java.util.concurrent.CompletableFuture.completedFuture(cached.getPrimaryGroup()));continue;}
             if(!rankSlots.tryAcquire())continue;
@@ -59,6 +61,22 @@ final class LuckPermsRoles implements AutoCloseable {
             if(group!=null&&group.matches("[a-z0-9_-]{1,40}"))rows.add(OrionBridge.quote(e.getKey())+":"+OrionBridge.quote(group));
         }
         return "{\"result\":\"OK\",\"groups\":{"+String.join(",",rows)+"}}";
+    }
+    private UUID rankUuid(String id){
+        if(id.startsWith("java:")){
+            String hex=id.substring(5);
+            return UUID.fromString(hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20));
+        }
+        // Never infer an authenticated identity from a name or prefix. The host
+        // sends only previously verified matching identity/UUID observations.
+        var flood=plugin.getServer().getPluginManager().getPlugin("floodgate");
+        if(flood==null||!flood.isEnabled())return null;
+        try{
+            Class<?> type=Class.forName("org.geysermc.floodgate.api.FloodgateApi",true,flood.getClass().getClassLoader());
+            Object api=type.getMethod("getInstance").invoke(null);
+            Object value=type.getMethod("createJavaPlayerId",long.class).invoke(api,Long.parseUnsignedLong(id.substring(8)));
+            return value instanceof UUID uuid&&uuid.getMostSignificantBits()==0&&uuid.getLeastSignificantBits()==Long.parseUnsignedLong(id.substring(8))?uuid:null;
+        }catch(ReflectiveOperationException|RuntimeException|LinkageError e){return null;}
     }
     private boolean safe(String name,Set<String> seen,int depth){
         if(depth>12||!seen.add(name)||!groups.contains(name)||Set.of("admin","administrator","owner","op","operator","staff","moderator","developer").contains(name.toLowerCase(Locale.ROOT)))return false;

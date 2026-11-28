@@ -66,7 +66,8 @@ final class ControlEndpoint {
                 if(!raw.matches("LOCKDOWN\\n[0-9]{1,16}"))throw new IllegalArgumentException();
                 guard.lockdown(Long.parseLong(raw.substring(9)),"Discord control");
                 respond(ex,"{\"result\":\"APPLIED\"}");
-            }catch(IllegalArgumentException e){ex.sendResponseHeaders(400,-1);}
+            }catch(java.io.UncheckedIOException e){ex.sendResponseHeaders(503,-1);}
+            catch(IllegalArgumentException e){ex.sendResponseHeaders(400,-1);}
             return;
         }
         if(batch){respond(ex,verification.batch(new String(body,StandardCharsets.UTF_8)));return;}

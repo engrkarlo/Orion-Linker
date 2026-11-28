@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- Persist bounded manual and automatic lockdown deadlines across normal restarts; add smoke coverage and explicit storage failure handling.
+- Add bounded offline rank lookup for matching authenticated Floodgate observations with the native bot; unsupported mappings remain unknown.
+- Extend ordinary Guard event coverage to bucket filling and inventory opening, and add a player linking guide. This does not guarantee third-party bypass protection.
+
 ## 2.0.0-alpha.7 (development preview)
 - Config v10 preserves existing settings while adding independent rule response, severity, duration and cooldown settings.
 - Local reversible containment covers guarded commands, building, edit budgets, movement, interactions and chat; overlapping restrictions expire independently. Rejoining does not reset the ordinary block budget.

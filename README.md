@@ -6,6 +6,10 @@ Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkar
 
 OrionBridge is an optional Paper 26.3 plugin that lets OrionBot read live Minecraft information, including custom skin textures and performance metrics. Your normal Discord status panels still work without it.
 
+## Player account linking
+
+[Player linking guide](docs/player-linking.md) · [All commands and permissions](docs/manual.md#minecraft-commands-and-permissions) · [Discord setup](https://github.com/engrkarlo/OrionBot/blob/orionbridge-2.0-completion/docs/orionbridge.md).
+
 ## Requirements
 
 - A running OrionBot installation with a registered Java Minecraft server.
