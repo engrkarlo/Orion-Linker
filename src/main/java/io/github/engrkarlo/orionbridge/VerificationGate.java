@@ -84,7 +84,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){
-            var s=state.get(p.getUniqueId());if(s!=null&&s.request()==null)state.request(p.getUniqueId(),System.currentTimeMillis());
+            long now=System.currentTimeMillis();var s=state.expireChallenge(p.getUniqueId(),now);if(s!=null&&s.request()==null)state.request(p.getUniqueId(),now);
             show(p);return true;
         }
         if(args.length==2&&args[0].equalsIgnoreCase("confirm")){
@@ -99,9 +99,9 @@ final class VerificationGate implements Listener,AutoCloseable {
         List<String> rows=new ArrayList<>();long now=System.currentTimeMillis();
         for(var s:state.snapshot()){
             if(s.identity()==null||rows.size()>=2000)continue;
-            rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+",\"primaryGroup\":"+q(primaryGroups.getOrDefault(s.player(),""))+"}");
+            rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"regenerate\":"+s.regenerate()+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+",\"primaryGroup\":"+q(primaryGroups.getOrDefault(s.player(),""))+"}");
         }
-        return "{\"protocol\":2,\"batchVerification\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
+        return "{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
     }
     private static String q(String v){return OrionBridge.quote(v);}
     String action(String body){
@@ -147,6 +147,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         long now=System.currentTimeMillis();String result;
         switch(fields[0]){
             case "OFFER"->{if(fields.length!=7)return "INVALID";result=state.offer(player,session,identity,UUID.fromString(fields[4]),fields[5],Long.parseLong(fields[6]),now);}
+            case "RESUME"->{if(fields.length!=8)return "INVALID";result=state.resume(player,session,identity,fields[4].equals("-")?null:UUID.fromString(fields[4]),UUID.fromString(fields[5]),fields[6],Long.parseLong(fields[7]),now);}
             case "CLAIM"->{if(fields.length!=7)return "INVALID";result=state.claim(player,session,identity,UUID.fromString(fields[4]),fields[5],new String(Base64.getUrlDecoder().decode(fields[6]),StandardCharsets.UTF_8),now);}
             case "LEASE"->{
                 if(fields.length<7||fields.length>10)return "INVALID";

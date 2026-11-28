@@ -39,5 +39,10 @@ public final class VerificationSmoke {
         var pending=state.request(player,now+300001);state.quit(player,now+300002);
         check(state.join(player,"java:"+"b".repeat(32),now+300003).request()==null);
         check(state.join(player,identity,now+300004).request()==null);
+        var restarted=new VerificationState();var fresh=restarted.join(player,identity,now+1000);
+        check(restarted.resume(player,fresh.session(),identity,null,req.request(),"c".repeat(32),now+300000,now+1000).equals("APPLIED"));
+        check(restarted.get(player).request().equals(req.request()));
+        var regen=restarted.request(player,now+12000);check(regen.regenerate());
+        check(restarted.resume(player,fresh.session(),identity,regen.request(),req.request(),"c".repeat(32),now+300000,now+12000).equals("STALE"));
     }
 }
