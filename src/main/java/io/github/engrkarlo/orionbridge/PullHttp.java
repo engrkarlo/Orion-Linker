@@ -28,7 +28,7 @@ final class PullHttp implements AutoCloseable {
                 ex.getResponseHeaders().set("Cache-Control","no-store");
                 ex.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");
                 if(!authorized(ex)){ex.sendResponseHeaders(401,-1);return;}
-                if(java.util.Set.of("/v2/actions","/v2/verification","/v2/verification/batch","/v2/policy","/v2/chat").contains(ex.getRequestURI().getRawPath())&&control!=null)control.handle(ex);
+                if(java.util.Set.of("/v2/actions","/v2/verification","/v2/verification/batch","/v2/policy","/v2/chat","/v2/recovery","/v2/health").contains(ex.getRequestURI().getRawPath())&&control!=null)control.handle(ex);
                 else if(audit!=null)audit.handle(ex);
                 else ex.sendResponseHeaders(404,-1);
             }finally{ex.close();}

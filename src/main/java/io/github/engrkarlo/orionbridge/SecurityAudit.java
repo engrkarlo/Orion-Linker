@@ -36,7 +36,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
         BukkitTask started=null;
         try{
             plugin.getServer().getPluginManager().registerEvents(this,plugin);
-            started=plugin.getServer().getScheduler().runTaskTimer(plugin,this::sample,20L,20L);
+            started=plugin.getServer().getScheduler().runTaskTimer(plugin,()->plugin.metrics().measure("audit",this::sample),20L,20L);
         }catch(RuntimeException e){HandlerList.unregisterAll(this);journal.close();throw e;}
         task=started;
     }

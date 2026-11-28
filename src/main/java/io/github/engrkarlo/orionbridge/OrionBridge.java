@@ -40,6 +40,13 @@ public final class OrionBridge extends JavaPlugin {
     private OrionGuard guard;
     private LuckPermsRoles roles;
     private ChatRelay chat;
+    private CoreProtectRecovery recovery;
+    private final BridgeMetrics metrics=new BridgeMetrics();
+    BridgeMetrics metrics(){return metrics;}
+    CoreProtectRecovery recovery(){return recovery;}
+    LocalModeration moderation(){return moderation;}
+    VerificationGate verification(){return verification;}
+    SecurityAudit audit(){return audit;}
     ChatRelay chat(){return chat;}
     LuckPermsRoles roles(){return roles;}
     private AutoCloseable worldEditGuard,luckPermsAudit;
@@ -99,6 +106,7 @@ public final class OrionBridge extends JavaPlugin {
                 if(getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{luckPermsAudit=new LuckPermsAudit(this,guard);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms audit hook unavailable.");}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
+            if(settings.mode().equals("pull")&&cfg.getBoolean("recovery.enabled",false))try{recovery=new CoreProtectRecovery(this,cfg);}catch(ReflectiveOperationException|RuntimeException e){getLogger().warning("CoreProtect recovery unavailable; check plugin API.");}
             apply(settings);
         }
         catch(Exception e){getLogger().warning("Bridge inactive: "+safeError(e)+". Correct config.yml and run /ob reload.");}
@@ -181,7 +189,7 @@ public final class OrionBridge extends JavaPlugin {
         }
         Session next=new Session(settings,skins,audit==null?null:audit.endpoint,control);
         session=next;
-        try {task=getServer().getScheduler().runTaskTimer(this,()->collect(next),1L,settings.seconds()*20L);}
+        try {task=getServer().getScheduler().runTaskTimer(this,()->metrics.measure("telemetry",()->collect(next)),1L,settings.seconds()*20L);}
         catch(RuntimeException e){stopSession();throw e;}
         getLogger().info("OrionBridge "+settings.mode()+" enabled; interval "+settings.seconds()+" seconds.");
     }

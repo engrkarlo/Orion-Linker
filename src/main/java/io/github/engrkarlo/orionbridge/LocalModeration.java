@@ -30,12 +30,20 @@ final class LocalModeration implements Listener,AutoCloseable {
         refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{for(Player player:plugin.getServer().getOnlinePlayers()){String before=online.get(player.getUniqueId());track(player);if(!Objects.equals(before,online.get(player.getUniqueId())))notifyBan(player);}},20L,20L);
     }
     private void track(Player p){String id=identities.resolve(p);if(id==null)online.remove(p.getUniqueId());else online.put(p.getUniqueId(),id);}
-    String apply(SanctionState.Case c)throws java.io.IOException{
+    java.util.List<SanctionState.Case> active(String identity){return state.active(identity,System.currentTimeMillis());}
+    synchronized String apply(SanctionState.Case c)throws java.io.IOException{
         if(!open.get())return "CLOSED";
+        boolean newCase=state.revision(c.id())<c.revision();
         String result=state.apply(c,System.currentTimeMillis());
         if(result.equals("PERSISTED"))try{plugin.getServer().getScheduler().runTask(plugin,()->{
             if(!open.get())return;
-            for(Player p:plugin.getServer().getOnlinePlayers())if(c.identity().equals(online.get(p.getUniqueId())))notifyBan(p);
+            for(Player p:plugin.getServer().getOnlinePlayers())if(c.identity().equals(online.get(p.getUniqueId()))){
+                if(newCase&&!c.revoked()&&c.active(System.currentTimeMillis())){
+                    if(c.kind()==SanctionState.Kind.KICK){p.kick(Component.text(c.reason()+" | Case "+c.id()));continue;}
+                    p.sendMessage(Component.text("OrionBridge: "+c.kind()+" | "+c.reason()+" | Case "+c.id()));
+                }
+                notifyBan(p);
+            }
         });}catch(RuntimeException ignored){/* The persisted sanction is checked on the next event/login. */}
         return result;
     }

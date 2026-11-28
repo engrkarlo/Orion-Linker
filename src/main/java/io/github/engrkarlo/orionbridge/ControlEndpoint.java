@@ -16,14 +16,25 @@ final class ControlEndpoint {
         boolean linking=batch||path.equals("/v2/verification");
         boolean policy=path.equals("/v2/policy");
         boolean chat=path.equals("/v2/chat");
-        if(ex.getRequestURI().getRawQuery()!=null||!(linking||policy||chat||path.equals("/v2/actions"))||linking&&verification==null||!linking&&!policy&&!chat&&moderation==null||policy&&plugin.guard()==null||chat&&plugin.chat()==null){ex.sendResponseHeaders(404,-1);return;}
-        if(!method.equals("POST")&&!((linking&&!batch||policy||chat)&&method.equals("GET"))){ex.sendResponseHeaders(405,-1);return;}
+        boolean recovery=path.equals("/v2/recovery"),health=path.equals("/v2/health");
+        if(ex.getRequestURI().getRawQuery()!=null||!(linking||policy||chat||recovery||health||path.equals("/v2/actions"))||linking&&verification==null||!linking&&!policy&&!chat&&!recovery&&!health&&moderation==null||policy&&plugin.guard()==null||chat&&plugin.chat()==null||recovery&&plugin.recovery()==null){ex.sendResponseHeaders(404,-1);return;}
+        if(!method.equals("POST")&&!((linking&&!batch||policy||chat||health)&&method.equals("GET"))){ex.sendResponseHeaders(405,-1);return;}
         var h=ex.getRequestHeaders();String g=h.getFirst("X-Orion-Guild"),s=h.getFirst("X-Orion-Server");
         if(!auth.scope(g,s)){ex.sendResponseHeaders(401,-1);return;}
         int limit=batch?16384:4096;
         byte[] body=ex.getRequestBody().readNBytes(limit+1);
         if(body.length>limit){ex.sendResponseHeaders(413,-1);return;}
         if(!auth.verify(method,path,g,s,h.getFirst("X-Orion-Time"),h.getFirst("X-Orion-Nonce"),h.getFirst("X-Orion-Signature"),body,System.currentTimeMillis())){ex.sendResponseHeaders(401,-1);return;}
+        if(health){
+            if(!method.equals("GET")||body.length!=0){ex.sendResponseHeaders(405,-1);return;}
+            respond(ex,plugin.metrics().json());return;
+        }
+        if(recovery){
+            try{respond(ex,plugin.recovery().request(new String(body,StandardCharsets.UTF_8)));}
+            catch(IllegalArgumentException e){ex.sendResponseHeaders(400,-1);}
+            catch(Exception e){respond(ex,"{\"result\":\"UNAVAILABLE_OR_UNKNOWN\"}");}
+            return;
+        }
         if(chat){
             ChatRelay relay=plugin.chat();
             if(method.equals("GET")){if(body.length!=0){ex.sendResponseHeaders(400,-1);return;}respond(ex,relay.snapshot());return;}

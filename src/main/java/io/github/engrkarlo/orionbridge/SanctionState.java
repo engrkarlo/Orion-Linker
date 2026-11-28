@@ -7,7 +7,7 @@ import java.util.*;
 
 /** Each immutable case is independently enforced. Revisions prevent stale apply after revoke. */
 final class SanctionState {
-    enum Kind {MUTE,FREEZE,BUILD_RESTRICTION,QUARANTINE,TEMP_BAN,PERMANENT_BAN,WORLDEDIT_RESTRICTION,COMMAND_RESTRICTION,WARNING}
+    enum Kind {MUTE,FREEZE,BUILD_RESTRICTION,QUARANTINE,TEMP_BAN,PERMANENT_BAN,WORLDEDIT_RESTRICTION,COMMAND_RESTRICTION,WARNING,KICK,ROLE_SUSPENSION}
     record Case(UUID id,long revision,String identity,Kind kind,long expiry,boolean revoked,String reason) {
         boolean active(long now){return !revoked&&(expiry==0||expiry>now);}
     }
@@ -47,6 +47,7 @@ final class SanctionState {
     static String encode(Case c){
         return String.join("\n",c.id().toString(),Long.toString(c.revision()),c.identity(),c.kind().name(),Long.toString(c.expiry()),c.revoked()?"REVOKE":"APPLY",Base64.getUrlEncoder().withoutPadding().encodeToString(c.reason().getBytes(StandardCharsets.UTF_8)));
     }
+    synchronized long revision(UUID id){Case c=cases.get(id);return c==null?0:c.revision();}
     synchronized String apply(Case next,long now)throws IOException{
         Case old=cases.get(next.id());
         if(old!=null){

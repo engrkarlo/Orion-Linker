@@ -49,7 +49,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         menus=new VerificationMenus(plugin,cfg);
         for(Player p:plugin.getServer().getOnlinePlayers())state.join(p.getUniqueId(),identities.resolve(p));
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
-        refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,this::sample,20L,20L);
+        refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->plugin.metrics().measure("verification",this::sample),20L,20L);
     }
     private boolean restricted(Player p){return active&&state.restricted(p.getUniqueId(),System.currentTimeMillis());}
     private boolean same(Player p,VerificationState.Session old){
@@ -142,7 +142,7 @@ final class VerificationGate implements Listener,AutoCloseable {
                 if(result.equals("APPLIED")){
                     if(profile.isEmpty())trusted.remove(player);else trusted.put(player,new Trust(profile,trustUntil));
                     if(plugin.roles()!=null)try{
-                        Set<String> desired=groups.isEmpty()?Set.of():new HashSet<>(Arrays.asList(groups.split(",")));
+                        Set<String> desired=groups.isEmpty()||plugin.moderation()!=null&&plugin.moderation().denied(player,SanctionState.Kind.ROLE_SUSPENSION)?Set.of():new HashSet<>(Arrays.asList(groups.split(",")));
                         plugin.roles().sync(p,desired,Long.parseLong(fields[6]));
                     }catch(RuntimeException e){plugin.getLogger().warning("Managed rank reconciliation failed; prior temporary grants expire.");}
                 }
