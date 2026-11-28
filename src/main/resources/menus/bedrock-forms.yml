@@ -2,7 +2,7 @@
 # Controls account linking before gameplay, not the post-verification dashboard.
 # Automatically selected for Bedrock through Floodgate. Image paths are optional; material is not used.
 # Use MiniMessage colors. Keep <code>, <discord>, <discord_id> and <invite> placeholders where needed.
-# Never expose the private code in public chat. Restart Paper to apply changes.
+# Never expose the private code in public chat. Use /ob reload to apply changes.
 theme-version: 2
 title: '<light_purple>OrionBridge</light_purple> | <white>Account verification</white>'
 # Each screen corresponds to a different step of the verification process.

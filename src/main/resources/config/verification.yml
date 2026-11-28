@@ -4,8 +4,8 @@
 # including operators, until they link and confirm their Discord account.
 # Java, Bedrock/Floodgate and authenticated AuthMe players are supported.
 # During bot/network outages, authorization expires and gameplay is restricted.
-# Emergency console command: ob verification-off (until restart).
-# Restart Paper after changes.
+# Emergency console command: ob verification-off (until reload or restart).
+# Use /ob reload after changes.
 verification:
   # Opt in to account verification; false means no verification gate.
   enabled: false

@@ -2,7 +2,7 @@
 # Requires LuckPerms, verification and matching Role Sync settings in OrionBot.
 # Configure explicit mappings in Discord; this file limits what Minecraft can grant.
 # Rank synchronization does not grant OP, and unsafe inherited permissions are refused.
-# Restart Paper after changes.
+# Use /ob reload after changes.
 roles:
   enabled: false
   # Read previously linked offline ranks where a canonical identity is supported.

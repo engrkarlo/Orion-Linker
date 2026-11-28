@@ -37,6 +37,9 @@ public final class CategoryConfigSmoke {
             check(Files.readString(dir.resolve("config/chat.yml")).contains("Cross-platform chat"));
             try(var files=Files.list(dir)){check(Files.readString(files.filter(p->p.getFileName().toString().endsWith(".bak")).findFirst().orElseThrow()).equals(original));}
             check(!CategoryConfig.migrate(dir,defaults,categories));
+            var wrong=CategoryConfig.read(dir.resolve("config/chat.yml"));wrong.set("chat.enabled","false");CategoryConfig.save(dir.resolve("config/chat.yml"),wrong);
+            try{CategoryConfig.load(dir,defaults,categories);throw new AssertionError("Invalid boolean type accepted");}catch(CategoryConfig.LayoutException expected){}
+            wrong.set("chat.enabled",true);CategoryConfig.save(dir.resolve("config/chat.yml"),wrong);
             Files.delete(dir.resolve("config/chat.yml"));
             try{CategoryConfig.load(dir,defaults,categories);throw new AssertionError("Missing category accepted");}catch(IOException expected){}
             check(CategoryConfig.migrate(fresh,defaults,categories));var clean=CategoryConfig.load(fresh,defaults,categories);check(!clean.getBoolean("chat.enabled"));check(clean.isConfigurationSection("guard.profiles.administrator.worldedit-scope"));check(clean.isList("guard.profiles.administrator.worldedit-scope.commands"));

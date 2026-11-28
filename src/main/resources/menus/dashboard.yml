@@ -2,7 +2,7 @@
 # Controls /ob account, /ob roles, punishments, reports, appeals and /ob admin.
 # Shared across Java dialogs, chest menus and Bedrock forms. Not the linking screen.
 # Use MiniMessage colors, e.g. <light_purple>Text</light_purple>. Keep placeholders.
-# Existing custom values are retained. Restart Paper to apply changes.
+# Existing custom values are retained. Use /ob reload to apply changes.
 theme-version: 3
 title-prefix: '<light_purple>OrionBridge</light_purple> <gray>·</gray> '
 # Button captions and common display labels.

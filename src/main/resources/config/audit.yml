@@ -1,7 +1,7 @@
 # OrionBridge | Audit and evidence
 # Sends signed activity/evidence to OrionBot in Pull mode. Enable audit in the
 # Discord control center as well. This does not punish players by itself.
-# Restart Paper after changes. Keep the signing key private.
+# Use /ob reload after changes. Keep the signing key private.
 audit:
   enabled: false
   # Copy these two IDs from Setup credentials in OrionBot. They identify this

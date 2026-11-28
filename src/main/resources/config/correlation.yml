@@ -2,7 +2,7 @@
 # Review-only correlation, never automatic punishment. This uses pseudonymous
 # fingerprints, not raw IP addresses in Discord. Consider privacy requirements.
 # Enable ONLY if Paper sees each authenticated player's real address.
-# Shared proxy/backend IPs create false matches. Restart after changes.
+# Shared proxy/backend IPs create false matches. Use /ob reload after changes.
 correlation:
   enabled: false
   # Confirm only after checking real client forwarding on your server.

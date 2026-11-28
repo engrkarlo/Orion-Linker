@@ -1,6 +1,6 @@
 # OrionBridge | CoreProtect recovery
 # Optional lookup and controlled rollback. Requires CoreProtect and signed control.
-# Start with lookup only and test on a disposable world. Restart after changes.
+# Start with lookup only and test on a disposable world. Use /ob reload after changes.
 recovery:
   # true: allow bounded CoreProtect evidence previews through OrionBot.
   enabled: false

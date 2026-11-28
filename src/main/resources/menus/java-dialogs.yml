@@ -2,7 +2,7 @@
 # Controls account linking before gameplay, not the post-verification dashboard.
 # Used for DIALOG mode and text fallback. Only button names and dialog sizing are used; material/image are retained for compatibility.
 # Use MiniMessage colors. Keep <code>, <discord>, <discord_id> and <invite> placeholders where needed.
-# Never expose the private code in public chat. Restart Paper to apply changes.
+# Never expose the private code in public chat. Use /ob reload to apply changes.
 theme-version: 3
 title: '<light_purple>OrionBridge</light_purple> | <white>Account verification</white>'
 # Each screen corresponds to a different step of the verification process.

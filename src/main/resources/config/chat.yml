@@ -3,7 +3,7 @@
 # Before enabling: use Pull mode, finish signed control and account verification,
 # choose Minecraft chat in OrionBot's Channels menu, then click Enable chat.
 # Enable Message Content Intent in the Discord Developer Portal and grant the bot
-# access to the selected channel. Restart Paper after editing this file.
+# access to the selected channel. Use /ob reload after editing this file.
 chat:
   # true: turn on the local relay. false: no Minecraft/Discord relay.
   # Both sides must be enabled. Unlinked players cannot send via the relay.

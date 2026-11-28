@@ -2,7 +2,7 @@
 # Requires Pull and verified trusted profiles for privileged operations.
 # Start disabled; test your ordinary and staff commands on a staging server.
 # This is not a replacement for backups or protection against arbitrary plugin API writes.
-# Restart Paper after changes.
+# Use /ob reload after changes.
 guard:
   # true: enforce local staff-command, edit and activity limits. Test first.
   enabled: false
