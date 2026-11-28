@@ -18,10 +18,11 @@ Never share the code with another player. Do not enter your Microsoft password o
 | `/ob account` or `/ob` | Open your account/verification interface |
 | `/ob roles` | Account/rank information |
 | `/ob punishments` | Current local restrictions |
-| `/ob report`, `/ob appeal` | Send a staff-review request (include relevant case ID, if available) |
+| `/ob report` | Send a staff-review request |
+| `/ob appeal` | View formal Discord appeal instructions and local case IDs |
 | `/orionbridge account` (Discord) | Open your account interface |
 
-Ordinary players do not need a special OrionBridge permission node. Reports/appeals require a verified account and enabled audit feed; they are not automatically adjudicated.
+Ordinary players do not need a special OrionBridge permission node. Minecraft reports require a verified account and enabled audit feed. For formal appeals choose Appeal a case on the Discord verification panel, submit your case ID and explanation, and check My appeals. Staff decisions do not automatically remove sanctions.
 
 ## For administrators
 

@@ -25,7 +25,8 @@ Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid pub
 | /ob link | Start or resume linking |
 | /ob roles | Linked player's account/rank view |
 | /ob punishments | Current local sanctions |
-| /ob report, /ob appeal | Submit a staff-review request; not an automatic appeal decision |
+| /ob report | Submit an audited staff-review request |
+| /ob appeal | Open formal Discord appeal instructions and local case IDs |
 | /ob admin | Verified staff with orionbridge.admin.gui and trusted lockdown-bypass profile |
 | /ob staffchat <message> | Verified authorized staff profile and enabled private relay |
 | /ob status | orionbridge.admin (operator by default) |
@@ -45,6 +46,10 @@ Case states distinguish pending approval, delivery, and platform receipts. A Dis
 ## Lockdown storage
 
 The local deadline is saved atomically to `plugins/OrionBridge/guard-lockdown.state`. Keep this file with backups; an expired deadline is not restarted. A failed manual save is not acknowledged; an automatic storage failure is logged and remains enforced in memory only. Invalid saved data prevents normal Guard initialization; investigate before reopening. Individual automatic containment remains process-local.
+
+## Menu customization and performance
+
+The optional `headings` and `materials` keys in `menus/dashboard.yml` customize menu headings and inventory icons; existing labels and title prefix remain supported. Missing or invalid materials fall back to the built-in icon. Existing menu files are preserved; add keys manually and restart. Formal appeals are submitted on the Discord panel. See [live load benchmark](load-testing.md).
 
 ## Troubleshooting
 401: check existing token. Clock/signature error: sync clocks and verify guild/server keys. 404: check matching versions and proxy routes. Lease expiry: check bot health and polling, use console recovery if necessary. Missing WorldEdit/FAWE/LP/CoreProtect: check startup logs and supported APIs. A failed or missing hook is not proof of protection. Never use a live raid or production rollback for testing.

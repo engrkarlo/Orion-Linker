@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Deny resolved WorldEdit/FAWE commands when required edit hooks are unavailable; add configurable dashboard heading/icon keys and route formal appeals through the native Discord panel.
+- Document matched live load benchmark procedure and acceptance gates.
 - Persist bounded manual and automatic lockdown deadlines across normal restarts; add smoke coverage and explicit storage failure handling.
 - Add bounded offline rank lookup for matching authenticated Floodgate observations with the native bot; unsupported mappings remain unknown.
 - Extend ordinary Guard event coverage to bucket filling and inventory opening, and add a player linking guide. This does not guarantee third-party bypass protection.

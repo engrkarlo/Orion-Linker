@@ -38,7 +38,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final int ordinaryBlocks,joinLimit,entityLimit,containerLimit,containSeconds,lockSeconds;
     private final boolean allowNonPlayerEdits,blockCommands,blockEdits;
     private final org.bukkit.scheduler.BukkitTask cleanup;
-    private volatile boolean open=true;
+    private volatile boolean open=true,worldEditReady=false;
     private static final class Counter {
         long start;int count;
         int add(long now,int amount,int seconds){if(now-start>=seconds*1000L||now<start){start=now;count=0;}count=Math.min(Integer.MAX_VALUE-amount,count)+amount;return count;}
@@ -110,6 +110,8 @@ final class OrionGuard implements Listener,AutoCloseable {
     boolean entityEdit(UUID player){return profile(player).entityTasks();}
     private static int clamp(int n,int low,int high){return Math.max(low,Math.min(high,n));}
     boolean open(){return open;}
+    void worldEditReady(){worldEditReady=true;}
+    @EventHandler public void pluginDisabled(org.bukkit.event.server.PluginDisableEvent e){if(Set.of("WorldEdit","FastAsyncWorldEdit").contains(e.getPlugin().getName()))worldEditReady=false;}
     Profile profile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
     String identity(UUID id){return gate==null?null:gate.linkedIdentity(id);}
     boolean staffChat(UUID id){return !frozen(id)&&profile(id).staffChat();}
@@ -165,6 +167,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         String name=canonical.substring(canonical.lastIndexOf(':')+1).replaceFirst("^/+","");
         boolean edit=owner.equals("worldedit")||owner.equals("fastasyncworldedit")||raw.startsWith("/")||raw.startsWith("worldedit:")||raw.startsWith("fawe:");
         boolean sensitive=edit||SENSITIVE.contains(name)||SENSITIVE.contains(raw.substring(raw.lastIndexOf(':')+1));
+        if(edit&&blockEdits&&!worldEditReady){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Guard edit hook unavailable; refusing an edit command until restart");player.sendMessage(Component.text("OrionGuard: edit protection unavailable. Contact staff."));return;}
         if(!blockCommands||!sensitive)return;
         Profile profile=profile(player.getUniqueId());
         boolean allowed=resolved!=null&&(edit?profile.editLimit()>0:profile.commands().contains(owner+":"+name));
@@ -209,7 +212,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         rule(player,actor,"EXPLOSION_ACTIVITY","Explosion affected "+e.blockList().size()+" candidate blocks; world="+e.getLocation().getWorld().getName()+"; actual result not confirmed","OrionGuard");
     }
     int operationLimit(UUID player,String world){
-        if(!open||protectedWorlds.contains(world)||frozen(player)||containment.denied(player,GuardContainment.Type.WORLDEDIT_RESTRICTION,System.currentTimeMillis())||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
+        if(!open||!worldEditReady||protectedWorlds.contains(world)||frozen(player)||containment.denied(player,GuardContainment.Type.WORLDEDIT_RESTRICTION,System.currentTimeMillis())||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
         return profile(player).editLimit();
     }
     boolean enforceEdits(){return blockEdits;}

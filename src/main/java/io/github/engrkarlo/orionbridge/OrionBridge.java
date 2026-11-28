@@ -103,7 +103,7 @@ public final class OrionBridge extends JavaPlugin {
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("guard.enabled",false)){
                 guard=new OrionGuard(this,cfg,verification,moderation,audit);
-                if(getServer().getPluginManager().isPluginEnabled("WorldEdit")||getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit"))try{worldEditGuard=new WorldEditGuard(guard);}catch(LinkageError|RuntimeException e){getLogger().severe("WorldEdit/FAWE guard hook unavailable; command guard remains active.");}
+                if(getServer().getPluginManager().isPluginEnabled("WorldEdit")||getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit"))try{worldEditGuard=new WorldEditGuard(guard);guard.worldEditReady();}catch(LinkageError|RuntimeException e){getLogger().severe("WorldEdit/FAWE guard hook unavailable; edit commands will be denied while edit enforcement is enabled.");}
                 if(getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{luckPermsAudit=new LuckPermsAudit(this,guard);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms audit hook unavailable.");}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
@@ -212,7 +212,7 @@ public final class OrionBridge extends JavaPlugin {
             sender.sendMessage("OrionBridge: telemetry="+(session!=null)+" audit="+(audit!=null)+" verification="+(verification!=null)+" moderation="+(moderation!=null)+" guard="+(guard!=null)+" WorldEdit="+(worldEditGuard!=null)+" LuckPerms="+(luckPermsAudit!=null));return true;
         }
         if(args.length==2&&args[0].equalsIgnoreCase("lockdown")&&sender instanceof org.bukkit.command.ConsoleCommandSender&&guard!=null){
-            try{guard.lockdown(args[1].equalsIgnoreCase("off")?0:System.currentTimeMillis()+Math.multiplyExact(Long.parseLong(args[1]),60000L),"console");sender.sendMessage("Lockdown updated.");}catch(RuntimeException e){sender.sendMessage("Usage: ob lockdown <1-60 minutes|off>");}return true;
+            try{guard.lockdown(args[1].equalsIgnoreCase("off")?0:System.currentTimeMillis()+Math.multiplyExact(Long.parseLong(args[1]),60000L),"console");sender.sendMessage("Lockdown updated.");}catch(java.io.UncheckedIOException e){sender.sendMessage("Lockdown update not persisted. Check Guard state storage.");}catch(RuntimeException e){sender.sendMessage("Usage: ob lockdown <1-60 minutes|off>");}return true;
         }
         if(sender instanceof Player player&&args.length>=2&&args[0].equalsIgnoreCase("staffchat")){
             boolean sent=chat!=null&&chat.staff(player,String.join(" ",java.util.Arrays.copyOfRange(args,1,args.length)));
@@ -223,7 +223,8 @@ public final class OrionBridge extends JavaPlugin {
             if(sub.equals("admin")&&args.length==1){dashboards.adminMenu(player);return true;}
             if(verification!=null&&verification.authorized(player.getUniqueId())){
                 if(java.util.Set.of("account","roles","punishments","report","appeal").contains(sub)&&args.length<=1){
-                    if(sub.equals("report")||sub.equals("appeal"))dashboards.report(player);
+                    if(sub.equals("report"))dashboards.report(player);
+                    else if(sub.equals("appeal"))dashboards.appeal(player);
                     else if(sub.equals("punishments"))dashboards.punishments(player,verification.linkedIdentity(player.getUniqueId()),false);
                     else dashboards.account(player);
                     return true;

@@ -37,27 +37,34 @@ final class DashboardMenus implements Listener,AutoCloseable {
     private boolean admin(Player p){return verified(p)&&p.hasPermission("orionbridge.admin.gui")&&plugin.guard()!=null&&plugin.guard().profile(p.getUniqueId()).lockdown();}
     private String label(String key,String fallback){return theme.getString("labels."+key,fallback);}
     private Component component(String value){try{return mm.deserialize(value);}catch(RuntimeException e){return Component.text(value);}}
-    private Component title(String title){return component(theme.getString("title-prefix","<light_purple>OrionBridge</light_purple> <gray>·</gray> <white>")).append(Component.text(title));}
-    private Entry button(String key,String fallback,Material material,Runnable run){return new Entry(label(key,fallback),material,run,null);}
+    private Component title(String title){String key=title.toLowerCase(Locale.ROOT).replace(' ','-');return component(theme.getString("title-prefix","<light_purple>OrionBridge</light_purple> <gray>·</gray> <white>")).append(component(theme.getString("headings."+key,title)));}
+    private Entry button(String key,String fallback,Material material,Runnable run){String value=theme.getString("materials."+key);Material selected=value==null?null:Material.matchMaterial(value);return new Entry(label(key,fallback),selected!=null&&selected.isItem()&&!selected.isAir()?selected:material,run,null);}
     void account(Player p){
         if(!verified(p)){p.sendMessage(Component.text("Verify first using /ob link."));return;}
         var s=plugin.verification().session(p.getUniqueId());
         String group=plugin.roles()==null?"Unavailable":plugin.roles().primary(p.getUniqueId());
         List<Entry> entries=new ArrayList<>();
         entries.add(button("punishments","Punishments",Material.BOOK,()->punishments(p,s.identity(),false)));
-        entries.add(button("report","Report / appeal",Material.PAPER,()->report(p)));
+        entries.add(button("report","Report",Material.PAPER,()->report(p)));
+        entries.add(button("appeal","Appeal a case",Material.WRITABLE_BOOK,()->appeal(p)));
         entries.add(button("refresh","Refresh account",Material.CLOCK,()->account(p)));
         if(admin(p))entries.add(button("admin","Administration",Material.NETHER_STAR,()->adminMenu(p)));
         show(p,false,"Account","Linked Discord: "+s.linked()+"\nMinecraft identity: "+s.identity()+"\nPrimary group: "+group+"\nTrusted profile: "+Objects.toString(plugin.verification().profile(p.getUniqueId()),"None"),entries);
     }
+    void appeal(Player p){
+        if(!verified(p))return;
+        String details="Open the Discord verification panel and choose Appeal a case. Enter your case ID and explanation. Use My appeals to track the decision. An appeal does not automatically remove restrictions.";
+        if(!invite.isBlank())details+="\nDiscord: "+invite;
+        show(p,false,"Appeal a case",details,List.of(button("punishments","View case IDs",Material.BOOK,()->punishments(p,plugin.verification().linkedIdentity(p.getUniqueId()),false)),button("back","Back",Material.ARROW,()->account(p))));
+    }
     void report(Player p){
         if(!verified(p))return;
-        input(p,false,"Report / appeal","Describe the issue or case ID",message->{
+        input(p,false,"Report an issue","Describe the issue or case ID",message->{
             if(!verified(p)||plugin.audit()==null){p.sendMessage(Component.text("Reporting unavailable; contact staff in Discord."));return;}
             String text=message.replaceAll("[\\p{Cntrl}]"," ").strip();
             if(text.isEmpty()||text.length()>500)return;
             plugin.audit().external("PLAYER_REPORT",plugin.verification().linkedIdentity(p.getUniqueId()),text,"Player report");
-            p.sendMessage(Component.text("Report queued for staff review. No appeal decision has been made."));
+            p.sendMessage(Component.text("Report queued for staff review. For a formal appeal use the Discord verification panel."));
         });
     }
     void punishments(Player p,String identity,boolean staff){

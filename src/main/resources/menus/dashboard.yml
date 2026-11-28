@@ -2,7 +2,8 @@ theme-version: 1
 title-prefix: '<light_purple>OrionBridge</light_purple> <gray>·</gray> '
 labels:
   punishments: '<white>Punishments</white>'
-  report: '<white>Report / appeal</white>'
+  report: '<white>Report</white>'
+  appeal: '<white>Appeal a case</white>'
   refresh: '<white>Refresh account</white>'
   admin: '<light_purple>Administration</light_purple>'
   players: '<white>Online players</white>'
@@ -13,3 +14,14 @@ labels:
   back: '<gray>Back</gray>'
   previous: '<gray>Previous page</gray>'
   next: '<gray>Next page</gray>'
+
+# Optional. Existing custom menu files are not overwritten; missing keys use defaults.
+headings:
+  account: '<white>Account</white>'
+  control-center: '<white>Control Center</white>'
+  appeal-a-case: '<white>Appeal a case</white>'
+materials:
+  report: PAPER
+  appeal: WRITABLE_BOOK
+  punishments: BOOK
+  admin: NETHER_STAR
