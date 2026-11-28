@@ -25,7 +25,7 @@
 | Permission | Default | Purpose |
 | --- | --- | --- |
 | `orionbridge.hide` | false | Hide from telemetry/activity listings |
-| `orionbridge.reload` | op | Reload connection/telemetry |
+| `orionbridge.reload` | op | reloads all configuration, messages and menus|
 | `orionbridge.admin` | op | View diagnostics |
 | `orionbridge.admin.gui` | false | Open trusted admin UI; profile and verification still required |
 
@@ -36,7 +36,7 @@ There is no OP bypass of mandatory verification. A staff profile relaxes only Or
 | Command | Purpose |
 | --- | --- |
 | `ob status` | Diagnose initialized services |
-| `ob reload` | Reload telemetry |
+| `ob reload` | reloads all configuration, messages and menus|
 | `ob lockdown <minutes or off>` | Set (1–60 minutes) or clear durable Guard lockdown |
 | `ob verification-off` | Disable verification gate until restart |
 
@@ -52,3 +52,7 @@ Use the server console rather than a player command when testing emergency recov
 | `/diagnostics` | OrionBot operator; bot health |
 
 Configured security staff can view evidence/request cases; configuration, approval and recovery require Manage Server. Discord enforcement also checks the platform's permissions and hierarchy. Appeal reviewers cannot be the appellant, original case requester or original case approver.
+
+## Command guide and completion
+
+`/ob help` lists available commands with usage and descriptions, `/ob help <command>` shows an individual entry. Java chat can suggest the command on click and display a hover hint. Tab completion is permission/feature-aware; lockdown suggests durations and off, confirm only suggests the sender's own unexpired request ID, and free-text staff chat has no argument suggestions. Formatting and descriptions live in `menus/help.yml`; status and replies live in `messages.yml`. Actual command names, permissions and enforcement are not customizable. `/ob reload` applies all YAML files. If a signed operation or pending moderation effect is active, retry later. Configuration errors keep the previous runtime when possible. A full service reload invalidates old staff leases and requires bot reauthorization; cosmetic edits do not.

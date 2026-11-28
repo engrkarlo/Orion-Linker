@@ -16,22 +16,24 @@ The first startup creates the following files in plugins/OrionBridge. Read the c
 
 ## Upgrade and reload
 
-Stop Paper, back up the complete plugin folder, and replace the JAR. A legacy root config (v1–14) is automatically split; its exact original is saved as config.yml.v<version>.*.bak. Existing values, keys, custom profile names, unknown root options and data directories are retained. The root version is written last; interrupted migration can reuse identical feature files. If a category conflicts, neither existing file is overwritten: compare both copies and resolve the conflict before restarting. Once v15 is installed, a missing category or duplicated legacy category in the root is an error, not an invitation to regenerate defaults. Keep the entire config/ and menus/ directories in backups. Existing v1 themes are backed up and upgraded additively to v2, preserving custom values. Missing menu files are generated even when verification is off.
+Stop Paper, back up the complete plugin folder, and replace the JAR. A legacy root config (v1–14) is automatically split; its exact original is saved as config.yml.v<version>.*.bak. Existing values, keys, custom profile names, unknown root options and data directories are retained. The root version is written last; interrupted migration can reuse identical feature files. If a category conflicts, neither existing file is overwritten: compare both copies and resolve the conflict before restarting. Once v15 is installed, a missing category or duplicated legacy category in the root is an error, not an invitation to regenerate defaults. Keep the entire config/ and menus/ directories in backups. Existing themes are backed up and upgraded additively to the current theme version, preserving custom values. Missing menu files and messages.yml are generated even when verification is off.
 
-Use /ob reload for root connection settings only; restart Paper for every feature/menu change. A missing/corrupt configuration can cause a temporary join restriction rather than silently turning security off. Console ob verification-off is the emergency release until restart. Do not change version numbers manually.
+Use /ob reload for the root, all eight feature files, all menu themes, and messages.yml. A cosmetic-only change keeps current verification leases and services. Feature/connection changes rebuild services with fresh signed authorization; unexpired challenges survive when the identity scope is unchanged. The command refuses to interrupt active signed requests or pending moderation effects; try again when idle. If initialization fails, the previous loaded runtime is restored when possible, without rewriting your edited files. If rollback fails, players are disconnected and joins restricted until recovery. A full service reload can discard ephemeral chat, old forms and unapproved CoreProtect previews; persisted sanctions, Guard deadlines and edit quotas remain. Explicit disabling of enforcement intentionally turns that service off. Installing a new JAR still requires restart. A missing/corrupt configuration can cause a temporary join restriction rather than silently turning security off. Console ob verification-off is the emergency release until restart. Do not change version numbers manually.
 
 ## Menu appearance
 
 - menus/java-dialogs.yml: native Java verification screens, button captions, columns and widths; also the text fallback.
 - menus/java-inventory.yml: Java verification chest menu, item materials, size and slots.
 - menus/bedrock-forms.yml: Bedrock verification forms, captions and optional texture paths.
-- menus/dashboard.yml: shared post-verification player and staff account menus, reports, appeals, punishments and diagnostics; Java dialog/inventory layout and Bedrock icons.
+- menus/dashboard.yml: shared post-verification player and staff account menus, reports, appeals, punishments and diagnostics; Java dialog/inventory layout, materials, tooltips and Bedrock icons.
+- menus/help.yml: command guide title, per-command usage/descriptions, entry formatting, footer, click and hover hints.
+- messages.yml: command responses, verification hints, moderation notices, Guard warnings, in-game chat and startup console styling.
 
 Use MiniMessage and retain dynamic placeholders, especially the private verification code and claimant identity. A theme only changes appearance, never authorization.
 
 ## Cross-platform chat
 
-Finish Pull pairing and signed control first, test verification, and enable the matching verification feature in OrionBot. In config/chat.yml set chat.enabled: true, then decide which direction(s) to allow. Minecraft-to-Discord relays eligible chat as MC · Player; Discord-to-Minecraft displays [Discord] Name to verified players. Set the Minecraft chat channel in OrionBot > Identity & Security > Channels, enable chat, grant channel access and enable Message Content Intent. Staff chat additionally requires the private staff destination, Guard and a trusted profile with staff-chat: true. Keep public and staff channels separate. Restart Paper. The relay is not a durable transcript; queued chat can expire during congestion.
+Finish Pull pairing and signed control first, test verification, and enable the matching verification feature in OrionBot. In config/chat.yml set chat.enabled: true, then decide which direction(s) to allow. Minecraft-to-Discord relays eligible chat as MC · Player; Discord-to-Minecraft displays [Discord] Name to verified players. Set the Minecraft chat channel in OrionBot > Identity & Security > Channels, enable chat, grant channel access and enable Message Content Intent. Staff chat additionally requires the private staff destination, Guard and a trusted profile with staff-chat: true. Keep public and staff channels separate. Run /ob reload. The relay is not a durable transcript; queued chat can expire during congestion.
 
 ## Data and transport
 Retain config.yml, config/, the entire audit and sanctions directories, and menu files. Back up OrionBot SQLite and encryption keys together. Keys are scoped to guild/server. Security endpoints are available through Pull: events, acknowledge, actions, verification and batch, policy, chat, recovery and health. Legacy /v1/snapshot remains compatible. No arbitrary remote console commands. Configure HTTPS, request size/rate limits and restrict plaintext backend access.
@@ -55,7 +57,7 @@ guard:
       cooldown-seconds: 30
 ```
 
-When Guard is enabled, in-game /ob reload requires the orionbridge.reload permission and a verified profile explicitly listing orionbridge:ob-reload. Console reload is unaffected. All other security configuration changes need a full restart.
+When Guard is enabled, in-game /ob reload requires the orionbridge.reload permission and a verified profile explicitly listing orionbridge:ob-reload. Console reload is unaffected. All configuration and menu changes can be applied through /ob reload.
 
 roles.offline-reconciliation (default true when roles.enabled is true) enables signed POST /v2/ranks. The plugin accepts at most four canonical Java UUIDs per request and at most four storage loads concurrently, waits at most two seconds, returns only available primary groups, and does not grant any permissions. The matching bot queries previously verified matching Java UUIDs, not arbitrary usernames. Bedrock/AuthMe rank changes reconcile on authenticated login; do not infer offline identity from names.
 

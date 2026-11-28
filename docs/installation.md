@@ -3,7 +3,7 @@
 [Documentation index](README.md) · [Commands](commands.md) · [Configuration](configuration.md)
 
 ## Installation
-Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v15 separates feature settings into config/ and backs up the original; security changes require a full restart.
+Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v15 separates feature settings into config/ and backs up the original; all YAML changes can be applied with /ob reload.
 
 ## Pull pairing
 Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid public certificate. Configure mode: pull, bind and allocated port. Copy the generated existing token privately into /mcserver manage > server > OrionBridge > Configure Pull. Keep the existing pairing on upgrade. Allow signed v2 GET/POST requests through the same proxy. No inbound port or proxy on the bot host. Push remains legacy telemetry only.
@@ -88,7 +88,7 @@ The console startup summary credits Karlow and shows the active mode, collection
 
 ## Reload and manage tokens
 
-Use `/ob reload` after editing telemetry settings in `config.yml`. Security, correlation and verification settings require a full Paper restart. It requires `orionbridge.reload` (operators by default). Reload validates the settings, restarts the listener/session, and attempts to restore previous settings if the replacement fails. Installing a new JAR still requires a server restart.
+Use `/ob reload` after editing any OrionBridge settings, category files, messages or menus. It requires `orionbridge.reload` (operators by default). Reload validates settings; presentation-only changes retain live services. Feature changes replace the local runtime and require fresh signed authorization. Busy requests defer reload; previous settings are restored if initialization fails, when possible. Installing a new JAR still requires a server restart.
 
 For Pull, clear or replace the token in Minecraft's config, reload, reopen the file and update the token in Discord. Disconnecting in Discord removes the bot's configuration but does not invalidate the plugin's token; rotate it on Minecraft to revoke old clients. Never post tokens in Discord or share screenshots that reveal them.
 

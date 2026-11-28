@@ -5,7 +5,7 @@ For the organized, maintained guides, start at [the documentation index](README.
 Players: [link your account](player-linking.md).
 
 ## Installation
-Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v15 separates feature settings into config/ and backs up the original; security changes require a full restart.
+Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v15 separates feature settings into config/ and backs up the original; all YAML settings can be applied with /ob reload.
 
 ## Pull pairing
 Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid public certificate. Configure mode: pull, bind and allocated port. Copy the generated existing token privately into /mcserver manage > server > OrionBridge > Configure Pull. Keep the existing pairing on upgrade. Allow signed v2 GET/POST requests through the same proxy. No inbound port or proxy on the bot host. Push remains legacy telemetry only.
@@ -55,7 +55,7 @@ The local deadline is saved atomically to `plugins/OrionBridge/guard-lockdown.st
 
 ## Menu customization and performance
 
-The optional `headings`, `materials`, `images` and `layout` keys in `menus/dashboard.yml` customize headings, inventory icons, Bedrock button images, dialog column/width, inventory rows, information slot and preferred button slots; existing labels and title prefix remain supported. Invalid/colliding slots are skipped and the inventory grows to fit its actions. Missing or invalid materials fall back to the built-in icon. Existing menu customizations are preserved during theme v2 migration; restart after edits. Formal appeals are submitted on the Discord panel. See [live load benchmark](load-testing.md).
+The optional `headings`, `materials`, `images` and `layout` keys in `menus/dashboard.yml` customize headings, inventory icons, Bedrock button images, dialog column/width, inventory rows, information slot and preferred button slots; existing labels and title prefix remain supported. Invalid/colliding slots are skipped and the inventory grows to fit its actions. Missing or invalid materials fall back to the built-in icon. Existing menu customizations are preserved during theme v2 migration; run /ob reload after edits. Formal appeals are submitted on the Discord panel. See [live load benchmark](load-testing.md).
 
 ## Troubleshooting
 401: check existing token. Clock/signature error: sync clocks and verify guild/server keys. 404: check matching versions and proxy routes. Lease expiry: check bot health and polling, use console recovery if necessary. Missing WorldEdit/FAWE/LP/CoreProtect: check startup logs and supported APIs. A failed or missing hook is not proof of protection. Never use a live raid or production rollback for testing.

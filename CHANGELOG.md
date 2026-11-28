@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Full guarded /ob reload for connection, all feature files, messages and menus; retain live sessions for cosmetic changes and preserve Guard state/challenges across compatible runtime rebuilds. Reject busy signed work and roll back failed initialization.
+- Add configurable styled /ob help [command], permission-aware completion, private confirmation ID suggestions, and YAML-driven player messages, chat, menu presentation and startup console colors.
 - Configuration v15: separate eight feature categories into config/, retain legacy settings and private backup, verify output before atomic replacement, reject migration conflicts and missing category files.
 - Human-friendly feature comments and menu theme v2 guidance; preserve custom menu values, create all menus even while verification is disabled. Update operator documentation and setup instructions.
 - Final source inspection: restore missing immutable edit authorization type, reduce redundant LuckPerms transient node replacements, move bounded storage pruning off the main thread, optimize replay nonce expiry and enlarge the bounded verification batch payload. Large task quotas reserve up to 1024 attempts per durable write.
