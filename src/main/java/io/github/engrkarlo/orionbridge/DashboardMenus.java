@@ -38,9 +38,19 @@ final class DashboardMenus implements Listener,AutoCloseable {
     private String label(String key,String fallback){return theme.getString("labels."+key,fallback);}
     private Component component(String value){try{return mm.deserialize(value);}catch(RuntimeException e){return Component.text(value);}}
     private Component title(String title){String key=title.toLowerCase(Locale.ROOT).replace(' ','-');return component(theme.getString("title-prefix","<light_purple>OrionBridge</light_purple> <gray>·</gray> <white>")).append(component(theme.getString("headings."+key,title)));}
+    private String key(String title){return title.toLowerCase(Locale.ROOT).replace(' ','-').replace('_','-');}
+    private Component themed(String key,String fallback,String... pairs){
+        String value=theme.getString(key,fallback);
+        var tags=new ArrayList<net.kyori.adventure.text.minimessage.tag.resolver.TagResolver>();
+        for(int i=0;i<pairs.length;i+=2)tags.add(net.kyori.adventure.text.minimessage.tag.resolver.Placeholder.unparsed(pairs[i],Objects.toString(pairs[i+1],"")));
+        try{return mm.deserialize(value,tags.toArray(net.kyori.adventure.text.minimessage.tag.resolver.TagResolver[]::new));}
+        catch(RuntimeException ex){return Component.text(pairs.length==2?Objects.toString(pairs[1],""):fallback);}
+    }
+    private void message(Player p,String key,String fallback){p.sendMessage(themed("messages."+key,fallback));}
+    private Material material(String key,Material fallback){String value=theme.getString("materials."+key);Material m=value==null?null:Material.matchMaterial(value);return m!=null&&m.isItem()&&!m.isAir()?m:fallback;}
     private Entry button(String key,String fallback,Material material,Runnable run){String value=theme.getString("materials."+key);Material selected=value==null?null:Material.matchMaterial(value);return new Entry(label(key,fallback),selected!=null&&selected.isItem()&&!selected.isAir()?selected:material,run,null,theme.getString("images."+key,""));}
     void account(Player p){
-        if(!verified(p)){p.sendMessage(Component.text("Verify first using /ob link."));return;}
+        if(!verified(p)){message(p,"verify-first","Verify first using /ob link.");return;}
         var s=plugin.verification().session(p.getUniqueId());
         String group=plugin.roles()==null?"Unavailable":plugin.roles().primary(p.getUniqueId());
         List<Entry> entries=new ArrayList<>();
@@ -49,34 +59,34 @@ final class DashboardMenus implements Listener,AutoCloseable {
         entries.add(button("appeal","Appeal a case",Material.WRITABLE_BOOK,()->appeal(p)));
         entries.add(button("refresh","Refresh account",Material.CLOCK,()->account(p)));
         if(admin(p))entries.add(button("admin","Administration",Material.NETHER_STAR,()->adminMenu(p)));
-        show(p,false,"Account","Linked Discord: "+s.linked()+"\nMinecraft identity: "+s.identity()+"\nPrimary group: "+group+"\nTrusted profile: "+Objects.toString(plugin.verification().profile(p.getUniqueId()),"None"),entries);
+        show(p,false,"Account",themed("bodies.account","Linked Discord: <discord>\nMinecraft identity: <identity>\nPrimary group: <group>\nTrusted profile: <profile>","discord",s.linked(),"identity",s.identity(),"group",group,"profile",Objects.toString(plugin.verification().profile(p.getUniqueId()),"None")),entries);
     }
     void appeal(Player p){
         if(!verified(p))return;
-        String details="Open the Discord verification panel and choose Appeal a case. Enter your case ID and explanation. Use My appeals to track the decision. An appeal does not automatically remove restrictions.";
-        if(!invite.isBlank())details+="\nDiscord: "+invite;
+        Component details=themed("bodies.appeal-a-case","Open the Discord verification panel and choose Appeal a case. Enter your case ID and explanation. Use My appeals to track the decision. An appeal does not automatically remove restrictions.");
+        if(!invite.isBlank())details=details.append(Component.newline()).append(themed("bodies.discord-invite","Discord: <invite>","invite",invite));
         show(p,false,"Appeal a case",details,List.of(button("punishments","View case IDs",Material.BOOK,()->punishments(p,plugin.verification().linkedIdentity(p.getUniqueId()),false)),button("back","Back",Material.ARROW,()->account(p))));
     }
     void report(Player p){
         if(!verified(p))return;
         input(p,false,"Report an issue","Describe the issue or case ID",message->{
-            if(!verified(p)||plugin.audit()==null){p.sendMessage(Component.text("Reporting unavailable; contact staff in Discord."));return;}
+            if(!verified(p)||plugin.audit()==null){message(p,"report-unavailable","Reporting unavailable; contact staff in Discord.");return;}
             String text=message.replaceAll("[\\p{Cntrl}]"," ").strip();
             if(text.isEmpty()||text.length()>500)return;
             plugin.audit().external("PLAYER_REPORT",plugin.verification().linkedIdentity(p.getUniqueId()),text,"Player report");
-            p.sendMessage(Component.text("Report queued for staff review. For a formal appeal use the Discord verification panel."));
+            message(p,"report-queued","Report queued for staff review. For a formal appeal use the Discord verification panel.");
         });
     }
     void punishments(Player p,String identity,boolean staff){
         if(staff?!admin(p):!verified(p))return;
         var list=plugin.moderation()==null?List.<SanctionState.Case>of():plugin.moderation().active(identity);
-        StringBuilder details=new StringBuilder("Active local sanctions: "+list.size());
-        for(var c:list.stream().limit(12).toList())details.append("\n").append(c.kind()).append(" · ").append(c.id()).append("\n").append(c.expiry()==0?"Indefinite":java.time.Instant.ofEpochMilli(c.expiry())).append(" · ").append(c.reason());
-        show(p,staff,"Punishments",details.toString(),List.of(button("back","Back",Material.ARROW,()->{if(staff)adminMenu(p);else account(p);})));
+        Component details=themed("bodies.punishments","Active local sanctions: <count>","count",Integer.toString(list.size()));
+        for(var c:list.stream().limit(12).toList())details=details.append(Component.newline()).append(themed("bodies.sanction","<kind> · <id>\n<expiry> · <reason>","kind",c.kind().toString(),"id",c.id().toString(),"expiry",c.expiry()==0?theme.getString("labels.indefinite","Indefinite"):java.time.Instant.ofEpochMilli(c.expiry()).toString(),"reason",c.reason()));
+        show(p,staff,"Punishments",details,List.of(button("back","Back",Material.ARROW,()->{if(staff)adminMenu(p);else account(p);})));
     }
     void adminMenu(Player p){
-        if(!admin(p)){p.sendMessage(Component.text("A verified trusted administrator and orionbridge.admin.gui are required."));return;}
-        String status="Online: "+plugin.getServer().getOnlinePlayers().size()+"\nAudit: "+(plugin.audit()!=null)+"\nModeration: "+(plugin.moderation()!=null)+"\nLockdown: "+(plugin.guard()!=null&&plugin.guard().lockdown())+"\nDiscord dashboard owns policy changes and approvals.";
+        if(!admin(p)){message(p,"admin-required","A verified trusted administrator and orionbridge.admin.gui are required.");return;}
+        Component status=themed("bodies.control-center","Online: <online>\nAudit: <audit>\nModeration: <moderation>\nLockdown: <lockdown>\nDiscord dashboard owns policy changes and approvals.","online",Integer.toString(plugin.getServer().getOnlinePlayers().size()),"audit",Boolean.toString(plugin.audit()!=null),"moderation",Boolean.toString(plugin.moderation()!=null),"lockdown",Boolean.toString(plugin.guard()!=null&&plugin.guard().lockdown()));
         show(p,true,"Control Center",status,List.of(button("players","Online players",Material.PLAYER_HEAD,()->players(p,0)),button("search","Search identity",Material.COMPASS,()->input(p,true,"Inspect account","Canonical Minecraft identity",id->{if(SanctionState.validIdentity(id.strip()))inspect(p,id.strip(),id.strip());})),button("performance","Performance",Material.CLOCK,()->show(p,true,"Diagnostics",plugin.metrics().json(),List.of(button("back","Back",Material.ARROW,()->adminMenu(p))))),button("account","My account",Material.BOOK,()->account(p))));
     }
     private void players(Player p,int page){
@@ -90,53 +100,56 @@ final class DashboardMenus implements Listener,AutoCloseable {
                 if(!admin(p))return;Player target=plugin.getServer().getPlayer(id);
                 String identity=target==null?null:plugin.identities().fresh(target);
                 if(identity!=null)inspect(p,identity,target.getName());
-                else p.sendMessage(Component.text("No authenticated identity available."));
+                else message(p,"identity-unavailable","No authenticated identity available.");
             },id));
         }
         if(current>0)entries.add(button("previous","Previous page",Material.ARROW,()->players(p,current-1)));
         if(current<max)entries.add(button("next","Next page",Material.ARROW,()->players(p,current+1)));
         entries.add(button("back","Back",Material.BARRIER,()->adminMenu(p)));
-        show(p,true,"Players","Page "+(current+1)+"/"+(max+1),entries);
+        show(p,true,"Players",themed("bodies.players","Page <current>/<total>","current",Integer.toString(current+1),"total",Integer.toString(max+1)),entries);
     }
     private void inspect(Player p,String identity,String name){
         if(!admin(p)||!SanctionState.validIdentity(identity))return;
-        show(p,true,"Player profile",name+"\n"+identity+"\nUse Discord for historical identity, evidence and policy editing.",List.of(button("punishments","Active punishments",Material.BOOK,()->punishments(p,identity,true)),button("request","Request punishment",Material.IRON_AXE,()->request(p,identity)),button("back","Back",Material.ARROW,()->adminMenu(p))));
+        show(p,true,"Player profile",themed("bodies.player-profile","<name>\n<identity>\nUse Discord for historical identity, evidence and policy editing.","name",name,"identity",identity),List.of(button("punishments","Active punishments",Material.BOOK,()->punishments(p,identity,true)),button("request","Request punishment",Material.IRON_AXE,()->request(p,identity)),button("back","Back",Material.ARROW,()->adminMenu(p))));
     }
     private void request(Player p,String identity){
         if(!admin(p)||plugin.audit()==null)return;
         var types=List.of("WARNING","MUTE","FREEZE","QUARANTINE","BUILD_RESTRICTION","WORLDEDIT_RESTRICTION","TEMP_BAN");
-        show(p,true,"Punishment request","Select a type; an independent Discord administrator must approve.",types.stream().map(type->new Entry(type,Material.PAPER,()->input(p,true,"Request "+type,"Duration and reason (e.g. 1h griefing)",raw->{
+        show(p,true,"Punishment request",themed("bodies.punishment-request","Select a type; an independent Discord administrator must approve."),types.stream().map(type->new Entry(label("type-"+key(type),type),material("type-"+key(type),Material.PAPER),()->input(p,true,"Request "+type,"Duration and reason (e.g. 1h griefing)",raw->{
             if(!admin(p)||plugin.audit()==null)return;
             String text=raw.replaceAll("[\\p{Cntrl}]"," ").strip();
             if(text.isEmpty()||text.length()>450)return;
             plugin.audit().external("ADMIN_PUNISH_REQUEST",identity,"Requested type "+type+"; "+text+"; staff identity "+plugin.verification().linkedIdentity(p.getUniqueId()),"In-game staff request");
-            p.sendMessage(Component.text("Request queued. No punishment applied before Discord approval."));
+            message(p,"request-queued","Request queued. No punishment applied before Discord approval.");
         }),null)).toList());
     }
     private void input(Player p,boolean staff,String title,String hint,Consumer<String> action){
         if(staff?!admin(p):!verified(p))return;
         UUID token=UUID.randomUUID();screens.put(p.getUniqueId(),token);
         Consumer<String> safe=text->{if(usable(p,staff,token))action.accept(text);};
-        if(Bedrock.detect(p)==Bedrock.Detection.BEDROCK&&Bedrock.input(p,plugin,title,hint,"",safe,()->{}))return;
-        if(JavaDialogs.input(p,plugin,Component.text(title),Component.text(hint),Component.text("Submit"),Component.text("Cancel"),240,safe))return;
-        p.sendMessage(Component.text("Input interface unavailable. Use the Discord dashboard."));
+        var legacy=LegacyComponentSerializer.legacySection();
+        Component heading=themed("headings."+key(title),title),prompt=themed("inputs."+key(title),hint);
+        if(Bedrock.detect(p)==Bedrock.Detection.BEDROCK&&Bedrock.input(p,plugin,legacy.serialize(heading),legacy.serialize(prompt),"",safe,()->{}))return;
+        if(JavaDialogs.input(p,plugin,heading,prompt,themed("labels.submit","Submit"),themed("labels.cancel","Cancel"),Math.max(50,Math.min(300,theme.getInt("layout.input-width",240))),safe))return;
+        message(p,"input-unavailable","Input interface unavailable. Use the Discord dashboard.");
     }
     private boolean usable(Player p,boolean staff,UUID token){return open&&Objects.equals(screens.get(p.getUniqueId()),token)&&(staff?admin(p):verified(p));}
-    private void show(Player p,boolean staff,String heading,String details,List<Entry> entries){
+    private void show(Player p,boolean staff,String heading,String details,List<Entry> entries){show(p,staff,heading,themed("bodies."+key(heading),"<details>","details",details),entries);}
+    private void show(Player p,boolean staff,String heading,Component details,List<Entry> entries){
         if(staff?!admin(p):!verified(p))return;
         if(entries.isEmpty()||entries.size()>45)return;
         UUID token=UUID.randomUUID();screens.put(p.getUniqueId(),token);
         Consumer<Integer> callback=index->{if(index>=0&&index<entries.size()&&usable(p,staff,token)){screens.remove(p.getUniqueId(),token);entries.get(index).action().run();}};
         var detection=Bedrock.detect(p);
         var legacy=LegacyComponentSerializer.legacySection();
-        if(detection==Bedrock.Detection.BEDROCK&&Bedrock.show(p,plugin,legacy.serialize(title(heading)),details,entries.stream().map(e->new Bedrock.Button(legacy.serialize(component(e.name())),e.image())).toList(),callback,()->{}))return;
-        if(detection==Bedrock.Detection.JAVA&&!interfaceType.equalsIgnoreCase("INVENTORY")&&JavaDialogs.show(p,plugin,title(heading),Component.text(details),null,entries.stream().map(e->new JavaDialogs.Button(component(e.name()),null)).toList(),Math.max(1,Math.min(2,theme.getInt("layout.dialog-columns",2))),Math.max(50,Math.min(300,theme.getInt("layout.dialog-button-width",150))),-1,callback))return;
-        if(detection!=Bedrock.Detection.JAVA){p.sendMessage(title(heading));p.sendMessage(Component.text(details));return;}
+        if(detection==Bedrock.Detection.BEDROCK&&Bedrock.show(p,plugin,legacy.serialize(title(heading)),legacy.serialize(details),entries.stream().map(e->new Bedrock.Button(legacy.serialize(component(e.name())),e.image())).toList(),callback,()->{}))return;
+        if(detection==Bedrock.Detection.JAVA&&!interfaceType.equalsIgnoreCase("INVENTORY")&&JavaDialogs.show(p,plugin,title(heading),details,null,entries.stream().map(e->new JavaDialogs.Button(component(e.name()),null)).toList(),Math.max(1,Math.min(2,theme.getInt("layout.dialog-columns",2))),Math.max(50,Math.min(300,theme.getInt("layout.dialog-button-width",150))),-1,callback))return;
+        if(detection!=Bedrock.Detection.JAVA){p.sendMessage(title(heading));p.sendMessage(details);return;}
         Holder holder=new Holder(p.getUniqueId(),token,staff,callback);
         int size=Math.max(Math.max(27,Math.min(54,theme.getInt("layout.inventory-rows",3)*9)),Math.min(54,((entries.size()+1+8)/9)*9));holder.inventory=Bukkit.createInventory(holder,size,title(heading));
         int infoSlot=Math.max(0,Math.min(size-1,theme.getInt("layout.information-slot",0)));
         List<Integer> positions=DashboardLayout.slots(size,infoSlot,entries.size(),theme.getIntegerList("layout.button-slots"));
-        var info=new ItemStack(Material.BOOK);var infoMeta=info.getItemMeta();infoMeta.displayName(title(heading));infoMeta.lore(Arrays.stream(details.split("\n")).limit(20).map(Component::text).map(c->c.decoration(TextDecoration.ITALIC,false)).toList());info.setItemMeta(infoMeta);holder.inventory.setItem(infoSlot,info);
+        var info=new ItemStack(material("information",Material.BOOK));var infoMeta=info.getItemMeta();infoMeta.displayName(title(heading));infoMeta.lore(Arrays.stream(legacy.serialize(details).split("\\n")).limit(20).map(legacy::deserialize).map(c->c.decoration(TextDecoration.ITALIC,false)).toList());info.setItemMeta(infoMeta);holder.inventory.setItem(infoSlot,info);
         for(int i=0;i<entries.size();i++){
             Entry e=entries.get(i);ItemStack item=new ItemStack(e.material());var meta=item.getItemMeta();
             if(meta instanceof SkullMeta skull&&e.head()!=null){Player target=plugin.getServer().getPlayer(e.head());if(target!=null)skull.setPlayerProfile(target.getPlayerProfile());}

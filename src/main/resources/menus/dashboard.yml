@@ -14,24 +14,88 @@ labels:
   back: '<gray>Back</gray>'
   previous: '<gray>Previous page</gray>'
   next: '<gray>Next page</gray>'
+  submit: '<white>Submit</white>'
+  cancel: '<gray>Cancel</gray>'
+  indefinite: Indefinite
+  type-warning: Warning
+  type-mute: Mute
+  type-freeze: Freeze
+  type-quarantine: Quarantine
+  type-build-restriction: Build restriction
+  type-worldedit-restriction: WorldEdit restriction
+  type-temp-ban: Temporary ban
 
 # Optional. Existing custom menu files are not overwritten; missing keys use defaults.
 headings:
   account: '<white>Account</white>'
   control-center: '<white>Control Center</white>'
   appeal-a-case: '<white>Appeal a case</white>'
+  punishments: '<white>Punishments</white>'
+  players: '<white>Players</white>'
+  player-profile: '<white>Player profile</white>'
+  diagnostics: '<white>Diagnostics</white>'
+  punishment-request: '<white>Punishment request</white>'
+  report-an-issue: '<white>Report an issue</white>'
+  inspect-account: '<white>Inspect account</white>'
 materials:
   report: PAPER
   appeal: WRITABLE_BOOK
   punishments: BOOK
   admin: NETHER_STAR
+  information: BOOK
 
 # Optional layout preferences. Invalid, duplicate and occupied slots are skipped.
 layout:
   dialog-columns: 2
   dialog-button-width: 150
+  input-width: 240
   inventory-rows: 3
   information-slot: 0
   button-slots: []
 # Bedrock form button image paths, using the same keys as labels.
 images: {}
+
+# Dynamic values are inserted as literal text, never interpreted as MiniMessage tags.
+bodies:
+  account: |-
+    <gray>Linked Discord:</gray> <discord>
+    <gray>Minecraft identity:</gray> <identity>
+    <gray>Primary group:</gray> <group>
+    <gray>Trusted profile:</gray> <profile>
+  appeal-a-case: 'Open the Discord verification panel and choose Appeal a case. Enter your case ID and explanation. Use My appeals to track the decision. An appeal does not automatically remove restrictions.'
+  discord-invite: 'Discord: <invite>'
+  punishments: 'Active local sanctions: <count>'
+  sanction: |-
+    <kind> · <id>
+    <expiry> · <reason>
+  control-center: |-
+    Online: <online>
+    Audit: <audit>
+    Moderation: <moderation>
+    Lockdown: <lockdown>
+    Discord dashboard owns policy changes and approvals.
+  players: 'Page <current>/<total>'
+  player-profile: |-
+    <name>
+    <identity>
+    Use Discord for historical identity, evidence and policy editing.
+  punishment-request: 'Select a type; an independent Discord administrator must approve.'
+  diagnostics: '<details>'
+inputs:
+  report-an-issue: Describe the issue or case ID
+  inspect-account: Canonical Minecraft identity
+  request-warning: Duration and reason (e.g. 1h griefing)
+  request-mute: Duration and reason (e.g. 1h griefing)
+  request-freeze: Duration and reason (e.g. 1h griefing)
+  request-quarantine: Duration and reason (e.g. 1h griefing)
+  request-build-restriction: Duration and reason (e.g. 1h griefing)
+  request-worldedit-restriction: Duration and reason (e.g. 1h griefing)
+  request-temp-ban: Duration and reason (e.g. 1h griefing)
+messages:
+  verify-first: 'Verify first using /ob link.'
+  report-unavailable: 'Reporting unavailable; contact staff in Discord.'
+  report-queued: 'Report queued for staff review. For a formal appeal use the Discord verification panel.'
+  admin-required: 'A verified trusted administrator and orionbridge.admin.gui are required.'
+  identity-unavailable: 'No authenticated identity available.'
+  request-queued: 'Request queued. No punishment applied before Discord approval.'
+  input-unavailable: 'Input interface unavailable. Use the Discord dashboard.'
