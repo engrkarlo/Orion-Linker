@@ -32,6 +32,7 @@ public final class OrionBridge extends JavaPlugin {
     private static final Pattern TEXTURE = Pattern.compile("/texture/([a-fA-F0-9]{32,64})");
     private static final int MAX_PLAYERS = 2000;
     private BukkitTask task;
+    private SecurityAudit audit;
     private volatile Session session;
     private volatile long lastWarning;
     private record Settings(String mode, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
@@ -45,10 +46,10 @@ public final class OrionBridge extends JavaPlugin {
         final HttpClient http;
         final StoredSkins storedSkins;
         final PullHttp pull;
-        Session(Settings settings, StoredSkins skins) throws java.io.IOException {
+        Session(Settings settings, StoredSkins skins, AuditEndpoint audit) throws java.io.IOException {
             this.settings=settings; this.storedSkins=skins;
             this.http=settings.mode().equals("push")?HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build():null;
-            try {this.pull=settings.mode().equals("pull")?new PullHttp(settings.bind(),settings.port(),settings.token()):null;}
+            try {this.pull=settings.mode().equals("pull")?new PullHttp(settings.bind(),settings.port(),settings.token(),audit):null;}
             catch(java.io.IOException | RuntimeException e){worker.shutdownNow();if(http!=null)http.shutdownNow();throw e;}
         }
         void close(){try{if(pull!=null)pull.close();}finally{worker.shutdownNow();if(http!=null)http.shutdownNow();}}
@@ -56,7 +57,14 @@ public final class OrionBridge extends JavaPlugin {
 
     @Override public void onEnable() {
         saveDefaultConfig();
-        try {apply(readSettings());}
+        try {
+            Settings settings=readSettings();
+            var cfg=new YamlConfiguration();cfg.load(new File(getDataFolder(),"config.yml"));
+            if(settings.mode().equals("pull")&&cfg.getBoolean("audit.enabled",false)){
+                try{audit=new SecurityAudit(this,cfg);}catch(Exception e){getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
+            }
+            apply(settings);
+        }
         catch(Exception e){getLogger().warning("Bridge inactive: "+safeError(e)+". Correct config.yml and run /ob reload.");}
         startupBanner();
     }
@@ -90,6 +98,12 @@ public final class OrionBridge extends JavaPlugin {
 
     private Settings readSettings() throws Exception {
         File file=new File(getDataFolder(),"config.yml");
+        try(var input=getResource("config.yml")){
+            if(input!=null){
+                var defaults=new YamlConfiguration();defaults.load(new java.io.InputStreamReader(input,java.nio.charset.StandardCharsets.UTF_8));
+                if(ConfigMigration.migrate(file.toPath(),defaults))getLogger().info("Migrated config.yml; original backed up.");
+            }
+        }
         YamlConfiguration cfg=new YamlConfiguration(); cfg.load(file);
         String endpointText=cfg.getString("endpoint","").trim();
         String mode=cfg.getString("mode",endpointText.isEmpty()?"pull":"push").trim().toLowerCase(java.util.Locale.ROOT);
@@ -129,7 +143,7 @@ public final class OrionBridge extends JavaPlugin {
             Plugin sr=getServer().getPluginManager().getPlugin("SkinsRestorer");
             if(sr!=null&&sr.isEnabled())skins=StoredSkins.connect(sr);
         }
-        Session next=new Session(settings,skins);
+        Session next=new Session(settings,skins,audit==null?null:audit.endpoint);
         session=next;
         try {task=getServer().getScheduler().runTaskTimer(this,()->collect(next),1L,settings.seconds()*20L);}
         catch(RuntimeException e){stopSession();throw e;}
@@ -287,5 +301,6 @@ public final class OrionBridge extends JavaPlugin {
 
     @Override public void onDisable() {
         stopSession();
+        if(audit!=null){audit.close();audit=null;}
     }
 }

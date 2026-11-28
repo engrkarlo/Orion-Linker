@@ -1,5 +1,5 @@
 name: OrionBridge
-version: '1.1.0'
+version: '2.0.0-alpha.1'
 main: io.github.engrkarlo.orionbridge.OrionBridge
 api-version: '26.3'
 description: Read-only authenticated telemetry and live player textures for OrionBot.

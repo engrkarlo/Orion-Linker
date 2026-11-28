@@ -34,7 +34,9 @@ function createVault(file=path.join(process.cwd(),'data','orionbridge.key')){
     open(value,scope){const b=Buffer.from(value,'base64'),c=createDecipheriv('aes-256-gcm',getKey(),b.subarray(0,12));c.setAAD(Buffer.from(scope));c.setAuthTag(b.subarray(12,28));return Buffer.concat([c.update(b.subarray(28)),c.final()]).toString('utf8')}
   }
 }
-async function fetchSnapshot(origin,token,{resolve=dns.resolve4,request=https.request}={}){
+async function fetchBridge(origin,token,{resolve=dns.resolve4,request=https.request,route='/v1/snapshot',method='GET',body,headers={}}={}){
+  if(![['GET','/v1/snapshot'],['GET','/v2/events'],['POST','/v2/acknowledge']].some(([m,p])=>m===method&&p===route))throw Error('Unsupported bridge route')
+  if(body!=null&&(!Buffer.isBuffer(body)||body.length>4096))throw Error('Invalid bridge body')
   const url=new URL(validateOrigin(origin))
   // Resolve and pin the destination address for this connection; do not
   // permit DNS rebinding, redirects, IP literals or private address ranges.
@@ -44,7 +46,7 @@ async function fetchSnapshot(origin,token,{resolve=dns.resolve4,request=https.re
   if(!ips.length||ips.some(ip=>!publicIPv4(ip)))throw Error('Bridge domain does not resolve to a public IPv4 address.')
   return new Promise((resolve,reject)=>{
     let deadline
-    const req=request({hostname:ips[0],port:443,servername:url.hostname,method:'GET',path:'/v1/snapshot',agent:false,headers:{Host:url.hostname,Authorization:'Bearer '+token,Accept:'application/json'},rejectUnauthorized:true},res=>{
+    const req=request({hostname:ips[0],port:443,servername:url.hostname,method,path:route,agent:false,headers:{...headers,Host:url.hostname,Authorization:'Bearer '+token,Accept:'application/json',...(body?{'Content-Type':'text/plain','Content-Length':body.length}:{})},rejectUnauthorized:true},res=>{
       if(res.statusCode!==200){res.destroy();reject(Error('Bridge HTTP '+res.statusCode));return}
       if(!/^application\/json(?:;|$)/i.test(res.headers['content-type']||'')||Number(res.headers['content-length'])>MAX_BODY){res.destroy();reject(Error('Invalid bridge response'));return}
       let bytes=0,parts=[]
@@ -53,9 +55,10 @@ async function fetchSnapshot(origin,token,{resolve=dns.resolve4,request=https.re
       res.on('error',reject);res.on('aborted',()=>reject(Error('Bridge response interrupted')))
     })
     deadline=setTimeout(()=>req.destroy(Error('Bridge timeout')),7000);deadline.unref?.()
-    req.on('error',reject);req.on('close',()=>clearTimeout(deadline));req.end()
+    req.on('error',reject);req.on('close',()=>clearTimeout(deadline));req.end(body)
   })
 }
+function fetchSnapshot(origin,token,options={}){return fetchBridge(origin,token,{...options,route:'/v1/snapshot',method:'GET',body:undefined,headers:{}})}
 function createPull({store,normalize,now=Date.now,fetcher=fetchSnapshot,vault=createVault()}){
   const cache=new Map(),pending=new Map()
   let active=0,epoch=0
@@ -118,4 +121,4 @@ function createPull({store,normalize,now=Date.now,fetcher=fetchSnapshot,vault=cr
   function stop(){epoch++;cache.clear();pending.clear()}
   return {configure,forget,peek,poll,stop}
 }
-module.exports={createPull,createVault,validateOrigin,publicIPv4,fetchSnapshot}
+module.exports={createPull,createVault,validateOrigin,publicIPv4,fetchSnapshot,fetchBridge}
