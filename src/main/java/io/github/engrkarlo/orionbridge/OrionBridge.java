@@ -139,12 +139,12 @@ public final class OrionBridge extends JavaPlugin {
                 if(getServer().getPluginManager().isPluginEnabled("WorldEdit")||getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit"))try{worldEditGuard=new WorldEditGuard(guard);guard.worldEditReady();}catch(LinkageError|RuntimeException e){getLogger().severe("WorldEdit/FAWE guard hook unavailable; edit commands will be denied while edit enforcement is enabled.");}
                 if(getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{luckPermsAudit=new LuckPermsAudit(this,guard);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms audit hook unavailable.");}
             }
-            if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
+            if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&(verification!=null||!cfg.getBoolean("chat.require-link",true)))chat=new ChatRelay(this,cfg,verification,moderation);
             if(settings.mode().equals("pull")&&cfg.getBoolean("recovery.enabled",false))try{recovery=new CoreProtectRecovery(this,cfg);}catch(ReflectiveOperationException|RuntimeException e){if(strict)throw e;getLogger().warning("CoreProtect recovery unavailable; check plugin API.");}
             dashboards=new DashboardMenus(this,cfg);
             if(strict&&settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled")&&roles==null)throw new IllegalArgumentException("Rank synchronization requires LuckPerms");
             if(strict&&verifyRequested(cfg)&&control==null)throw new IllegalArgumentException("Verification requires signed control in Pull mode");
-            if(strict&&cfg.getBoolean("chat.enabled")&&(chat==null||control==null))throw new IllegalArgumentException("Chat requires active verification and signed control");
+            if(strict&&cfg.getBoolean("chat.enabled")&&(chat==null||control==null))throw new IllegalArgumentException("Chat requires signed control and, in linked-only mode, account linking");
             startSession(settings);
     }
     private static boolean sameIdentityScope(YamlConfiguration a,YamlConfiguration b){
@@ -192,7 +192,7 @@ public final class OrionBridge extends JavaPlugin {
         boolean pull=settings.mode().equals("pull");
         if(cfg.getBoolean("verification.lobby.enabled")&&!forceRequested(cfg))throw new IllegalArgumentException("Verification lobby requires forced verification");
         if(verifyRequested(cfg)&&(!pull||!cfg.getBoolean("control.enabled")))throw new IllegalArgumentException("Verification requires Pull mode and signed control");
-        if(cfg.getBoolean("chat.enabled")&&(!verifyRequested(cfg)||!cfg.getBoolean("control.enabled")||!pull))throw new IllegalArgumentException("Chat requires Pull mode, verification and signed control");
+        if(cfg.getBoolean("chat.enabled")&&(!cfg.getBoolean("control.enabled")||!pull||cfg.getBoolean("chat.require-link",true)&&!verifyRequested(cfg)))throw new IllegalArgumentException("Chat requires Pull mode, signed control and, in linked-only mode, account linking");
         if(pull&&cfg.getBoolean("audit.enabled"))new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),cfg.getString("audit.signing-key",""));
         if(pull&&cfg.getBoolean("control.enabled")){
             String key=cfg.getString("control.signing-key","");
@@ -207,7 +207,7 @@ public final class OrionBridge extends JavaPlugin {
             &&(control!=null)==(pull&&cfg.getBoolean("control.enabled"))
             &&(guard!=null)==(pull&&cfg.getBoolean("guard.enabled"))
             &&(roles!=null)==(pull&&cfg.getBoolean("roles.enabled"))
-            &&(chat!=null)==(pull&&cfg.getBoolean("chat.enabled")&&verification!=null)
+            &&(chat!=null)==(pull&&cfg.getBoolean("chat.enabled")&&(verification!=null||!cfg.getBoolean("chat.require-link",true)))
             &&(recovery!=null)==(pull&&cfg.getBoolean("recovery.enabled"));
     }
     private void refreshOnline(){

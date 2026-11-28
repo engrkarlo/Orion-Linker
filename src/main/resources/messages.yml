@@ -2,7 +2,7 @@
 # Edit these MiniMessage strings to change wording, colors and formatting.
 # Keep dynamic placeholders intact. User-provided values are inserted literally.
 # /ob reload applies changes. The security checks never depend on wording.
-theme-version: 2
+theme-version: 3
 commands:
   unknown: '<red>✗ Unknown OrionBridge command.</red> <gray>Use /ob help.</gray>'
   denied: '<red>✗ You cannot use this command right now.</red> <gray>Check your permissions, verification and enabled features.</gray>'
@@ -54,6 +54,7 @@ chat:
   # These formats apply to in-game chat; Discord formatting is managed by OrionBot.
   staff-local: '<light_purple>[Staff]</light_purple> <white><name></white><gray>:</gray> <message>'
   discord: '<blue>[Discord]</blue> <white><name></white><gray>:</gray> <message>'
+  discord-unlinked: '<light_purple>[Discord · Unlinked]</light_purple> <white><name></white><gray>:</gray> <message>'
   discord-staff: '<light_purple>[Discord Staff]</light_purple> <white><name></white><gray>:</gray> <message>'
 
 # Startup console appearance. Values are supplied by actual service state.
