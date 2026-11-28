@@ -1,0 +1,123 @@
+# OrionBridge | OrionGuard protection
+# Requires Pull and verified trusted profiles for privileged operations.
+# Start disabled; test your ordinary and staff commands on a staging server.
+# This is not a replacement for backups or protection against arbitrary plugin API writes.
+# Restart Paper after changes.
+guard:
+  # true: enforce local staff-command, edit and activity limits. Test first.
+  enabled: false
+  # Restrict known administrative commands unless a trusted profile allows them.
+  block-sensitive-commands: true
+  # Opt-in: deny all unlisted player commands in addition to sensitive commands.
+  # List resolved owner:command names, not arbitrary aliases or wildcard permissions.
+  strict-command-allowlist: false
+  # Only used with strict allowlist: exact resolved owner:command names.
+  ordinary-commands: []
+  # Require the guarded WorldEdit/FAWE hook; unsupported edit commands are denied.
+  enforce-worldedit: true
+  # Allow bounded non-player edits only if needed; false blocks them.
+  allow-non-player-edits: false
+  # Non-player attempted mutation ceiling per operation.
+  non-player-per-operation: 10000
+  # Shared non-player attempted mutation ceiling per minute.
+  non-player-per-minute: 20000
+  # Ordinary player block attempts per minute. Higher trusted limits can apply.
+  block-changes-per-minute: 500
+  # Alert threshold for container item interaction attempts, not proven theft.
+  container-items-per-minute: 4096
+  # Alert on this many creature spawns in 10 seconds; actor may be unknown.
+  entities-per-10-seconds: 500
+  # Alert when this many players join in 10 seconds. Not proof of a raid.
+  joins-per-10-seconds: 20
+  # 0 = no automatic join lockdown. Positive values enable default join-spike lockdown.
+  join-lockdown-seconds: 0
+  # Default temporary containment duration when a rule applies a restriction.
+  containment-seconds: 60
+  # Worlds where guarded WorldEdit mutations are always denied.
+  protected-worlds: []
+  # Optional inclusive WorldEdit regions: world, x1, y1, z1, x2, y2, z2.
+  protected-regions: []
+  # Rule responses are additional to hard command/edit/block limits.
+  # Omitted keys retain the legacy configured containment/lockdown duration.
+  # ALERT, BUILD_RESTRICTION, WORLDEDIT_RESTRICTION, COMMAND_RESTRICTION,
+  # FREEZE, QUARANTINE; LOCKDOWN only for JOIN_SPIKE.
+  # Each rule: enabled = additional response/evidence, severity = alert urgency,
+  # response = action. Hard command/edit/block limits are independent of these switches.
+  # Optional duration-seconds: 5–3600; cooldown-seconds: 1–3600.
+  rules:
+    GUARD_COMMAND_BLOCKED:
+      enabled: true
+      severity: CRITICAL
+      response: ALERT
+    WORLDEDIT_BLOCKED:
+      enabled: true
+      severity: CRITICAL
+      response: ALERT
+    GUARD_BLOCK_LIMIT:
+      enabled: true
+      severity: HIGH
+      response: QUARANTINE
+    CONTAINER_ACTIVITY:
+      enabled: true
+      severity: MEDIUM
+      response: ALERT
+    JOIN_SPIKE:
+      enabled: true
+      severity: HIGH
+    ENTITY_SPIKE:
+      enabled: true
+      severity: MEDIUM
+      response: ALERT
+    EXPLOSION_ACTIVITY:
+      enabled: true
+      severity: HIGH
+      response: ALERT
+  # Profiles relax only selected Guard rules; they grant no Minecraft permissions.
+  # Map these names to trusted Discord roles in OrionBot. Temporary edit tasks
+  # also require independent approval and explicit resolved command entries.
+  profiles:
+    builder:
+      # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
+      commands: []
+      # Maximum attempted guarded edits per operation and per minute.
+      worldedit-per-operation: 100000
+      worldedit-per-minute: 200000
+      # Ordinary block-attempt limit for this profile.
+      blocks-per-minute: 5000
+      # Allow this profile to send/receive private staff chat if enabled.
+      staff-chat: true
+      # Permit this verified profile to bypass local Guard lockdown (not verification).
+      lockdown-bypass: false
+      # Allow entity creation in guarded edit tasks; direct removals still denied.
+      entity-tasks: false
+      # Temporary edit tasks require explicit worldedit-scope.commands entries.
+      worldedit-scope:
+        # Empty worlds/regions = no additional scope; global protection still wins.
+        worlds: []
+        regions: []
+        # Empty operations = deny all guarded mutations. BLOCK, BIOME, ENTITY.
+        operations: [BLOCK, BIOME, ENTITY]
+        # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
+      commands: []
+    administrator:
+      # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
+      commands: ['minecraft:gamemode', 'luckperms:luckperms']
+      # Maximum attempted guarded edits per operation and per minute.
+      worldedit-per-operation: 500000
+      worldedit-per-minute: 1000000
+      # Ordinary block-attempt limit for this profile.
+      blocks-per-minute: 10000
+      # Allow this profile to send/receive private staff chat if enabled.
+      staff-chat: true
+      # Permit this verified profile to bypass local Guard lockdown (not verification).
+      lockdown-bypass: true
+      # Allow entity creation in guarded edit tasks; direct removals still denied.
+      entity-tasks: true
+      worldedit-scope:
+        # Empty worlds/regions = no additional scope; global protection still wins.
+        worlds: []
+        regions: []
+        # Empty operations = deny all guarded mutations. BLOCK, BIOME, ENTITY.
+        operations: [BLOCK, BIOME, ENTITY]
+        # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
+      commands: []

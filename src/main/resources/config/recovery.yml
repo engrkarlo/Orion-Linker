@@ -1,0 +1,16 @@
+# OrionBridge | CoreProtect recovery
+# Optional lookup and controlled rollback. Requires CoreProtect and signed control.
+# Start with lookup only and test on a disposable world. Restart after changes.
+recovery:
+  # true: allow bounded CoreProtect evidence previews through OrionBot.
+  enabled: false
+  # true: allow independently approved rollback while lockdown is active,
+  # the target is offline and the approved preview has not changed.
+  # Leave false until the full recovery workflow has been tested.
+  allow-rollback: false
+  # Maximum records in a bounded preview.
+  maximum-records: 500
+  # Maximum radius in blocks around the requested location.
+  maximum-radius: 32
+  # Maximum time window in seconds (900 = 15 minutes).
+  maximum-seconds: 900

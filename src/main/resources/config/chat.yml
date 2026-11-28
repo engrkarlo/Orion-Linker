@@ -1,0 +1,30 @@
+# OrionBridge | Cross-platform chat
+# Connects Minecraft Java/Bedrock chat with a Discord text channel.
+# Before enabling: use Pull mode, finish signed control and account verification,
+# choose Minecraft chat in OrionBot's Channels menu, then click Enable chat.
+# Enable Message Content Intent in the Discord Developer Portal and grant the bot
+# access to the selected channel. Restart Paper after editing this file.
+chat:
+  # true: turn on the local relay. false: no Minecraft/Discord relay.
+  # Both sides must be enabled. Unlinked players cannot send via the relay.
+  enabled: false
+
+  # true: eligible Minecraft chat appears in Discord as "MC · Player: message".
+  # false: Minecraft chat remains in Minecraft; no public outbound relay.
+  minecraft-to-discord: true
+
+  # true: linked Discord members' messages appear to verified players in-game
+  # as "[Discord] Name: message". false: disables Discord-to-Minecraft delivery.
+  discord-to-minecraft: true
+
+  # true: allow a SEPARATE private staff route using /ob staffchat <message>.
+  # Requires Guard and a verified profile with staff-chat: true plus a Discord
+  # Private staff chat channel that denies @everyone View Channel.
+  # The two direction switches above also apply to staff chat. Keep private chat
+  # off unless staff roles and channel privacy have been tested.
+  staff-chat: false
+
+# What to expect: bot/webhook messages are ignored, mentions are suppressed on
+# relayed Discord messages, and supported local mutes/suspensions restrict relay.
+# Queues are bounded; old chat may expire during an outage or heavy traffic.
+# Chat is not a permanent transcript. Prefixes are currently fixed.

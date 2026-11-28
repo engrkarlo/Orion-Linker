@@ -1,0 +1,34 @@
+# OrionBridge | Account verification
+# Test Pull pairing, signed control, Discord verification panel and emergency
+# console access first. Enabling both switches restricts unverified players,
+# including operators, until they link and confirm their Discord account.
+# Java, Bedrock/Floodgate and authenticated AuthMe players are supported.
+# During bot/network outages, authorization expires and gameplay is restricted.
+# Emergency console command: ob verification-off (until restart).
+# Restart Paper after changes.
+verification:
+  # Opt in to account verification; false means no verification gate.
+  enabled: false
+  # Set true only after setup and testing. Both switches are required.
+  setup-complete: false
+  # DIALOG = native Java dialog; INVENTORY = chest-style Java menu.
+  # Bedrock uses its own forms automatically. See menus/ for appearance.
+  java-interface: DIALOG
+  # Invite shown to players on verification screens. Use your own Discord link.
+  discord-invite: ''
+  # How long a signed authorization is valid (15–60 seconds).
+  # A shorter lease revokes access sooner during outages but increases renewals.
+  # This is NOT the five-minute verification code lifetime.
+  lease-seconds: 60
+  # Reopen verification for restricted players after this many seconds (0–300).
+  # 0 disables automatic reopening, not the verification requirement.
+  reopen-seconds: 15
+  # Offline Java: use a short realm name only for a trusted AuthMe database.
+  # Leave empty for online-mode Java; share a realm only when accounts are shared.
+  authme-realm: ''
+  lobby:
+    # Optional: move restricted players to a loaded safe spawn, remember their
+    # original position, and return them after verification. No inventory changes.
+    enabled: false
+    # Exact loaded world name. Leave empty while disabled.
+    world: ''
