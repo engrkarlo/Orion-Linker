@@ -8,7 +8,7 @@ import net.kyori.adventure.text.event.HoverEvent;
 import java.util.*;
 
 final class OrionCommands implements TabExecutor {
-    private static final List<String> ORDER=List.of("help","account","link","confirm","return","roles","punishments","report","appeal","staffchat","admin","status","reload","lockdown","verification-off");
+    private static final List<String> ORDER=List.of("help","account","link","confirm","return","roles","punishments","report","appeal","staffchat","admin","status","reload","lockdown","verification-off","setup");
     private static final Set<String> ACCOUNT=Set.of("account","roles","punishments","report","appeal");
     private final OrionBridge plugin;
     OrionCommands(OrionBridge plugin){this.plugin=plugin;}
@@ -16,6 +16,7 @@ final class OrionCommands implements TabExecutor {
     private boolean verified(Player p){return plugin.verification()!=null&&plugin.verification().authorized(p.getUniqueId());}
     private boolean allowed(CommandSender sender,String sub){
         if(sub.equals("help"))return true;
+        if(sub.equals("setup"))return sender instanceof ConsoleCommandSender;
         if(sub.equals("lockdown"))return sender instanceof ConsoleCommandSender&&plugin.guard()!=null;
         if(sub.equals("verification-off"))return sender instanceof ConsoleCommandSender;
         if(sender instanceof Player p&&plugin.moderation()!=null&&plugin.moderation().denied(p.getUniqueId(),SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.COMMAND_RESTRICTION,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)&&!ACCOUNT.contains(sub)&&!Set.of("link","confirm").contains(sub))return false;
@@ -57,6 +58,7 @@ final class OrionCommands implements TabExecutor {
         if(args.length==2){
             String sub=args[0].toLowerCase(Locale.ROOT);if(!allowed(sender,sub))return List.of();
             if(sub.equals("help"))return match(available(sender),args[1]);
+            if(sub.equals("setup"))return match(List.of("status","approve","cancel"),args[1]);
             if(sub.equals("lockdown"))return match(List.of("off","1","5","10","15","30","60"),args[1]);
             if(sub.equals("confirm")&&sender instanceof Player p&&plugin.verification()!=null){
                 var session=plugin.verification().session(p.getUniqueId());
@@ -74,6 +76,7 @@ final class OrionCommands implements TabExecutor {
         if(!ORDER.contains(sub)){msg().send(sender,"commands.unknown");help(sender,null);return true;}
         if(!allowed(sender,sub)){msg().send(sender,"commands.denied");return true;}
         int n=args.length;
+        if(sub.equals("setup")){plugin.setupCommand(sender,args);return true;}
         if(sub.equals("verification-off")&&n==1){msg().send(sender,plugin.releaseVerification()?"commands.verification-off":"commands.verification-inactive");return true;}
         if(sub.equals("reload")&&n==1){
             msg().send(sender,"commands.reload-start");

@@ -41,6 +41,7 @@ final class CategoryConfig {
         for(String name:CATEGORIES)categories.put(name,resource(plugin,"config/"+name+".yml"));
         boolean changed=migrate(directory,defaults,categories);
         if(changed)plugin.getLogger().info("Configuration v15: feature files are in config/. Existing values retained; previous root backed up.");
+        SetupConfig.recover(directory);
         var combined=load(directory,defaults,categories);
         if(Files.isSymbolicLink(directory.resolve("menus")))throw new LayoutException("Invalid menus directory");
         for(String name:MENUS)prepareMenu(directory,name,resource(plugin,"menus/"+name+".yml"));

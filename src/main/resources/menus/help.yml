@@ -3,7 +3,7 @@
 # /ob help <command> shows one command. Changes apply with /ob reload.
 # Use MiniMessage for colors. Usage and descriptions are literal placeholders.
 # Click suggestions use real command names regardless of displayed text.
-theme-version: 1
+theme-version: 2
 header: '<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━━</dark_gray><newline><gradient:#b48cff:#f5b6ff><bold>✦ OrionBridge</bold></gradient> <gray>• Command Guide</gray><newline><gray>Choose a command to get started.</gray>'
 entry: ' <light_purple>› <usage></light_purple> <dark_gray>—</dark_gray> <gray><description></gray>'
 footer: '<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━━</dark_gray>'
@@ -56,3 +56,6 @@ commands:
   verification-off:
     usage: '/ob verification-off'
     description: 'Emergency verification release (console only).'
+  setup:
+    usage: 'ob setup [status | approve ID | cancel]'
+    description: 'Secure console-only setup of OrionBot credentials.'

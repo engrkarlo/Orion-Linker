@@ -67,6 +67,7 @@ public final class OrionBridge extends JavaPlugin {
     TextTheme messages(){return messages;}
     YamlConfiguration theme(String name){return java.util.Objects.requireNonNull(themes.get(name));}
     private OrionCommands commands;
+    private final SetupRequest setup=new SetupRequest();
     private OrionGuard retainedGuard;
     private record Settings(String mode, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
     private static final class Session {
@@ -79,10 +80,10 @@ public final class OrionBridge extends JavaPlugin {
         final HttpClient http;
         final StoredSkins storedSkins;
         final PullHttp pull;
-        Session(Settings settings, StoredSkins skins, AuditEndpoint audit,ControlEndpoint control) throws java.io.IOException {
+        Session(Settings settings, StoredSkins skins, AuditEndpoint audit,ControlEndpoint control,SetupRequest setup) throws java.io.IOException {
             this.settings=settings; this.storedSkins=skins;
             this.http=settings.mode().equals("push")?HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build():null;
-            try {this.pull=settings.mode().equals("pull")?new PullHttp(settings.bind(),settings.port(),settings.token(),audit,control):null;}
+            try {this.pull=settings.mode().equals("pull")?new PullHttp(settings.bind(),settings.port(),settings.token(),audit,control,setup):null;}
             catch(java.io.IOException | RuntimeException e){worker.shutdownNow();if(http!=null)http.shutdownNow();throw e;}
         }
         void close(){try{if(pull!=null)pull.close();}finally{worker.shutdownNow();if(http!=null)http.shutdownNow();}}
@@ -351,7 +352,7 @@ public final class OrionBridge extends JavaPlugin {
             Plugin sr=getServer().getPluginManager().getPlugin("SkinsRestorer");
             if(sr!=null&&sr.isEnabled())skins=StoredSkins.connect(sr);
         }
-        Session next=new Session(settings,skins,audit==null?null:audit.endpoint,control);
+        Session next=new Session(settings,skins,audit==null?null:audit.endpoint,control,setup);
         session=next;
         try {task=getServer().getScheduler().runTaskTimer(this,()->metrics.measure("telemetry",()->collect(next)),1L,settings.seconds()*20L);}
         catch(RuntimeException e){stopSession();throw e;}
@@ -364,6 +365,30 @@ public final class OrionBridge extends JavaPlugin {
         if(old!=null)old.close();
     }
 
+    void setupCommand(org.bukkit.command.CommandSender sender,String[] args){
+        if(!(sender instanceof org.bukkit.command.ConsoleCommandSender))return;
+        if(args.length==2&&args[1].equalsIgnoreCase("cancel")){setup.cancel();messages.send(sender,"setup.cancelled");return;}
+        if(session==null||session.pull==null){messages.send(sender,"setup.unavailable");return;}
+        long now=System.currentTimeMillis();
+        if(args.length==1){messages.send(sender,"setup.code","code",setup.open(now));return;}
+        if(args.length==2&&args[1].equalsIgnoreCase("status")){
+            var request=setup.peek(now);
+            if(request==null){messages.send(sender,"setup.none");return;}
+            var c=request.credentials();
+            messages.send(sender,"setup.pending","id",request.id(),"guild",c.guild(),"server",c.server(),"actor",c.actor());return;
+        }
+        if(args.length==3&&args[1].equalsIgnoreCase("approve")){
+            var request=setup.consume(args[2],now);
+            if(request==null){messages.send(sender,"setup.none");return;}
+            try{
+                SetupConfig.provision(getDataFolder().toPath(),request.credentials());
+                var result=reloadAll();
+                messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
+            }catch(Exception e){getLogger().warning("Setup could not apply: "+(e instanceof java.io.IOException?e.getMessage():"Invalid setup settings"));messages.send(sender,"setup.failed");}
+            return;
+        }
+        messages.send(sender,"setup.usage");
+    }
     boolean transportActive(){return session!=null;}
     boolean editHookActive(){return worldEditGuard!=null;}
     boolean permissionHookActive(){return luckPermsAudit!=null;}
