@@ -28,6 +28,10 @@ final class LuckPermsRoles implements AutoCloseable {
         groups=Set.copyOf(cfg.getStringList("roles.allowed-groups"));
         permissions=Set.copyOf(cfg.getStringList("roles.allowed-permissions"));
     }
+    String availableGroups(){
+        return "["+api.getGroupManager().getLoadedGroups().stream().map(Group::getName)
+            .filter(n->n.matches("[a-z0-9_-]{1,40}")).sorted().limit(100).map(OrionBridge::quote).collect(java.util.stream.Collectors.joining(","))+"]";
+    }
     String primary(UUID uuid){
         User user=api.getUserManager().getUser(uuid);
         return user==null?"":user.getPrimaryGroup();

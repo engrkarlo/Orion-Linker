@@ -21,7 +21,7 @@ final class SetupRequest {
             if(!guild.matches("[0-9]{17,20}")||!server.matches("[a-f0-9]{16}")||!actor.matches("[0-9]{17,20}")
                 ||!audit.matches("[a-f0-9]{64}")||!control.matches("[a-f0-9]{64}")||!network.matches("[a-f0-9]{64}")
                 ||audit.equals(control)||audit.equals(network)||control.equals(network)
-                ||!java.util.Set.of("CREDENTIALS","CHAT","LINK","FORCE","AUDIT").contains(feature))
+                ||!java.util.Set.of("CREDENTIALS","CHAT","LINK","FORCE","AUDIT","ROLES","GUARD","RECOVERY").contains(feature))
                 throw new IllegalArgumentException("Invalid setup credentials");
         }
         @Override public String toString(){return "Credentials[redacted]";}

@@ -56,6 +56,14 @@ final class SetupConfig {
                 if(v.getBoolean("verification.lobby.enabled")&&!v.getBoolean("verification.force",true))throw new IOException("Disable the verification lobby before enabling optional linking");
                 return java.util.Map.of("verification",v);
             }
+            case "ROLES","GUARD","RECOVERY"->{
+                String category=action.toLowerCase(java.util.Locale.ROOT);
+                var file=CategoryConfig.read(dir.resolve("config/"+category+".yml"));
+                if(action.equals("ROLES")&&!active)throw new IOException("Enable account linking before rank sync");
+                if(action.equals("GUARD")&&!force)throw new IOException("Test required linking before Guard enforcement");
+                file.set(category+".enabled",true);
+                return java.util.Map.of(category,file);
+            }
             case "FORCE"->{
                 if(!active)throw new IOException("Enable and test optional account linking first");
                 v.set("verification.force",true);

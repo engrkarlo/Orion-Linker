@@ -71,7 +71,7 @@ public final class OrionBridge extends JavaPlugin {
     private volatile String setupStatus="{}";
     String setupStatus(){return setupStatus;}
     void signal(String lane){var current=session;if(current!=null&&current.pull!=null)current.pull.signal(lane);}
-    private void publishSetupStatus(){setupStatus="{\"transport\":"+quote(session==null||session.pull==null?"OFF":session.pull.transport())+",\"audit\":"+(audit!=null)+",\"control\":"+(control!=null)+",\"linking\":"+(verification!=null)+",\"forced\":"+(verification!=null&&verification.forced())+",\"chat\":"+(chat!=null)+",\"chatRequireLink\":"+(chat==null||chat.requiresLink())+",\"guard\":"+(guard!=null)+",\"roles\":"+(roles!=null)+",\"recovery\":"+(recovery!=null)+"}";}
+    private void publishSetupStatus(){setupStatus="{\"transport\":"+quote(session==null||session.pull==null?"OFF":session.pull.transport())+",\"audit\":"+(audit!=null)+",\"control\":"+(control!=null)+",\"linking\":"+(verification!=null)+",\"forced\":"+(verification!=null&&verification.forced())+",\"chat\":"+(chat!=null)+",\"chatRequireLink\":"+(chat==null||chat.requiresLink())+",\"guard\":"+(guard!=null)+",\"roles\":"+(roles!=null)+",\"recovery\":"+(recovery!=null)+",\"rankGroups\":"+(roles==null?"[]":roles.availableGroups())+"}";}
     private OrionGuard retainedGuard;
     private record Settings(String mode, String transport, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
     private static final class Session {
@@ -395,6 +395,9 @@ public final class OrionBridge extends JavaPlugin {
                     if(activeConfig==null||control==null||!CategoryConfig.same(activeConfig,CategoryConfig.load(this)))throw new java.io.IOException("Finish credential setup and reload local edits before adding features");
                     if(java.util.Set.of("LINK","FORCE").contains(c.feature())&&!getServer().getOnlineMode()&&activeConfig.getString("verification.authme-realm","").isBlank()&&!installed("floodgate"))
                         throw new java.io.IOException("Offline Java needs a trusted AuthMe realm before linking");
+                    if(c.feature().equals("ROLES")&&!installed("LuckPerms"))throw new java.io.IOException("Install LuckPerms before rank synchronization");
+                    if(c.feature().equals("GUARD")&&(verification==null||!verification.forced()||!installed("WorldEdit")&&!installed("FastAsyncWorldEdit")&&activeConfig.getBoolean("guard.enforce-worldedit",true)))throw new java.io.IOException("Test mandatory linking and review Guard/WorldEdit settings before enabling protection");
+                    if(c.feature().equals("RECOVERY")&&!installed("CoreProtect"))throw new java.io.IOException("Install compatible CoreProtect before recovery");
                     if(c.feature().equals("FORCE")&&(verification==null||!verification.forced()&&getServer().getOnlinePlayers().stream().noneMatch(p->verification.authorized(p.getUniqueId()))))
                         throw new java.io.IOException("Test optional linking with an online authorized player before enforcing it");
                 }
