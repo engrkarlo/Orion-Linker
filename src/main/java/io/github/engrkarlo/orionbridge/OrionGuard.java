@@ -94,8 +94,9 @@ final class OrionGuard implements Listener,AutoCloseable {
         return restrictedUntil.getOrDefault(p.getUniqueId(),0L)>System.currentTimeMillis()||lockdown()&&!profile(p.getUniqueId()).lockdown();
     }
     private boolean safeCommand(String raw,Command command){
-        return command instanceof PluginIdentifiableCommand owned&&owned.getPlugin()==plugin&&command.getName().equals("ob")
-            ||command instanceof PluginIdentifiableCommand owned&&owned.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(command.getName().toLowerCase(Locale.ROOT));
+        if(!(command instanceof PluginIdentifiableCommand owned))return false;
+        return owned.getPlugin()==plugin&&command.getName().equals("ob")
+            ||owned.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(command.getName().toLowerCase(Locale.ROOT));
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void command(PlayerCommandPreprocessEvent e){
         Player player=e.getPlayer();String input=e.getMessage();
@@ -140,7 +141,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         int count=joins.add(System.currentTimeMillis(),1,10);
         if(count==joinLimit){evidence("JOIN_SPIKE",null,"Join threshold reached: "+count+" in 10 seconds; not proof of a raid","OrionGuard");if(lockSeconds>0)lockdown(System.currentTimeMillis()+lockSeconds*1000L,"join-spike policy");}
     }
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();blocks.remove(id);containers.remove(id);restrictedUntil.remove(id);}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();blocks.remove(id);containers.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void spawn(CreatureSpawnEvent e){
         if(entities.add(System.currentTimeMillis(),1,10)==entityLimit)evidence("ENTITY_SPIKE",null,"Creature-spawn threshold reached; source="+e.getSpawnReason()+"; actor unknown","OrionGuard");
     }

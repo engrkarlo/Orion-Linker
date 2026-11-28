@@ -38,6 +38,8 @@ public final class OrionBridge extends JavaPlugin {
     private VerificationGate verification;
     private AuthenticatedIdentity identities;
     private OrionGuard guard;
+    private LuckPermsRoles roles;
+    LuckPermsRoles roles(){return roles;}
     private AutoCloseable worldEditGuard,luckPermsAudit;
     OrionGuard guard(){return guard;}
     AuthenticatedIdentity identities(){return identities;}
@@ -73,6 +75,7 @@ public final class OrionBridge extends JavaPlugin {
             if(settings.mode().equals("pull")&&cfg.getBoolean("audit.enabled",false)){
                 try{audit=new SecurityAudit(this,cfg);}catch(Exception e){getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
             }
+            if(settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled",false)&&getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{roles=new LuckPermsRoles(cfg);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms role sync unavailable.");}
             if(cfg.getBoolean("verification.enabled",false)&&cfg.getBoolean("verification.setup-complete",false)){
                 try{verification=new VerificationGate(this,cfg);}
                 catch(Exception e){getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener(){
@@ -347,6 +350,7 @@ public final class OrionBridge extends JavaPlugin {
         if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}
         if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}
         if(guard!=null){guard.close();guard=null;}
+        if(roles!=null){roles.close();roles=null;}
         if(verification!=null){verification.close();verification=null;}
         if(moderation!=null){moderation.close();moderation=null;}control=null;
     }

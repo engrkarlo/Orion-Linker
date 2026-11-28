@@ -29,6 +29,7 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final Map<UUID,Boolean> wasVerified=new HashMap<>();
     private volatile boolean active=true;
     private final java.util.concurrent.ConcurrentMap<UUID,String> trusted=new ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentMap<UUID,String> primaryGroups=new ConcurrentHashMap<>();
     String profile(UUID player){
         var s=state.get(player);
         return active&&s!=null&&s.verified(System.currentTimeMillis())?trusted.get(player):null;
@@ -78,7 +79,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         List<String> rows=new ArrayList<>();long now=System.currentTimeMillis();
         for(var s:state.snapshot()){
             if(s.identity()==null||rows.size()>=2000)continue;
-            rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+"}");
+            rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+",\"primaryGroup\":"+q(primaryGroups.getOrDefault(s.player(),""))+"}");
         }
         return "{\"protocol\":2,\"batchVerification\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
     }
@@ -128,13 +129,21 @@ final class VerificationGate implements Listener,AutoCloseable {
             case "OFFER"->{if(fields.length!=7)return "INVALID";result=state.offer(player,session,identity,UUID.fromString(fields[4]),fields[5],Long.parseLong(fields[6]),now);}
             case "CLAIM"->{if(fields.length!=7)return "INVALID";result=state.claim(player,session,identity,UUID.fromString(fields[4]),fields[5],new String(Base64.getUrlDecoder().decode(fields[6]),StandardCharsets.UTF_8),now);}
             case "LEASE"->{
-                if(fields.length!=7&&fields.length!=8)return "INVALID";
-                String profile=fields.length==8?fields[7]:"";
+                if(fields.length<7||fields.length>9)return "INVALID";
+                String profile=fields.length>=8?fields[7]:"";
+                String groups=fields.length==9?fields[8]:"";
+                if(!groups.isEmpty()&&!groups.matches("[a-z0-9_-]{1,40}(,[a-z0-9_-]{1,40}){0,9}"))return "INVALID";
                 if(!profile.isEmpty()&&!profile.matches("[a-z0-9_-]{1,40}"))return "INVALID";
                 result=state.lease(player,session,identity,fields[4],Long.parseLong(fields[5]),Long.parseLong(fields[6]),now,lease);
-                if(result.equals("APPLIED")){if(profile.isEmpty())trusted.remove(player);else trusted.put(player,profile);}
+                if(result.equals("APPLIED")){
+                    if(profile.isEmpty())trusted.remove(player);else trusted.put(player,profile);
+                    if(plugin.roles()!=null)try{
+                        Set<String> desired=groups.isEmpty()?Set.of():new HashSet<>(Arrays.asList(groups.split(",")));
+                        plugin.roles().sync(p,desired,Long.parseLong(fields[6]));
+                    }catch(RuntimeException e){plugin.getLogger().warning("Managed rank reconciliation failed; prior temporary grants expire.");}
+                }
             }
-            case "RESTRICT"->{if(fields.length!=5)return "INVALID";result=state.restrict(player,session,identity,Long.parseLong(fields[4]),now);if(result.equals("APPLIED"))trusted.remove(player);}
+            case "RESTRICT"->{if(fields.length!=5)return "INVALID";result=state.restrict(player,session,identity,Long.parseLong(fields[4]),now);if(result.equals("APPLIED")){trusted.remove(player);if(plugin.roles()!=null)plugin.roles().clear(player);}}
             default->{return "INVALID";}
         }
         if(result.equals("APPLIED")){
@@ -148,6 +157,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         long now=System.currentTimeMillis();
         for(Player p:plugin.getServer().getOnlinePlayers()){
             UUID id=p.getUniqueId();String identity=identities.resolve(p);var s=state.get(id);
+            if(plugin.roles()!=null)primaryGroups.put(id,plugin.roles().primary(id));
             if(s==null||!Objects.equals(s.identity(),identity)){trusted.remove(id);s=state.join(id,identity);show(p);}
             s=state.expireChallenge(id,now);
             boolean verified=s.verified(now),before=Boolean.TRUE.equals(wasVerified.put(id,verified));
@@ -165,7 +175,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         return (s==null||s.identity()==null)&&resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
     @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);trusted.remove(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e){if(restricted(e.getPlayer()))plugin.getServer().getScheduler().runTask(plugin,()->show(e.getPlayer()));}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(restricted(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);
@@ -194,5 +204,5 @@ final class VerificationGate implements Listener,AutoCloseable {
         if(e.getDamager() instanceof Projectile projectile&&projectile.getShooter() instanceof Player p&&restricted(p))e.setCancelled(true);
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void hurt(EntityDamageEvent e){if(e.getEntity() instanceof Player p&&restricted(p))e.setCancelled(true);}
-    @Override public void close(){active=false;refresh.cancel();HandlerList.unregisterAll(this);menus.close();state.clear();trusted.clear();}
+    @Override public void close(){active=false;refresh.cancel();HandlerList.unregisterAll(this);menus.close();state.clear();trusted.clear();primaryGroups.clear();}
 }

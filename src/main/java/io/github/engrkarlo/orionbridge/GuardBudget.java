@@ -11,14 +11,14 @@ final class GuardBudget {
     private static final class Window {long started;long count;Window(long now){started=now;}}
     boolean reserve(UUID player,long now,long maximum){
         if(maximum<=0)return false;
-        Window window=windows.computeIfAbsent(player,id->new Window(now));
-        synchronized(window){
-            if(now-window.started>=MINUTE){window.started=now;window.count=0;}
-            if(window.count>=maximum)return false;
-            window.count++;return true;
-        }
+        var accepted=new java.util.concurrent.atomic.AtomicBoolean();
+        windows.compute(player,(id,window)->{
+            if(window==null||now-window.started>=MINUTE)window=new Window(now);
+            if(window.count<maximum){window.count++;accepted.set(true);}
+            return window;
+        });return accepted.get();
     }
-    void prune(long now){windows.entrySet().removeIf(e->{Window w=e.getValue();synchronized(w){return now-w.started>2*MINUTE;}});}
+    void prune(long now){for(UUID id:windows.keySet())windows.computeIfPresent(id,(k,w)->now-w.started>2*MINUTE?null:w);}
     static boolean operation(AtomicInteger used,int maximum){
         if(maximum<=0)return false;
         for(;;){int old=used.get();if(old>=maximum)return false;if(used.compareAndSet(old,old+1))return true;}
