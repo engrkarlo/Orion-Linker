@@ -26,22 +26,22 @@ final class PullHttp implements AutoCloseable {
         workers=new ThreadPoolExecutor(2,4,30,TimeUnit.SECONDS,new ArrayBlockingQueue<>(32),r->{Thread t=new Thread(r,"OrionBridge-HTTP");t.setDaemon(true);return t;},new ThreadPoolExecutor.AbortPolicy());
         server.setExecutor(workers);
         server.createContext("/v1/snapshot",this::handle);
-        server.createContext("/v3/setup",ex->{
+        // Same HTTPS origin and port. Bootstrap knows only a temporary console code;
+        // an independently generated claim capability is required to obtain the token.
+        server.createContext("/v3/setup",ex->handleSetup(ex,setup,token,false));
+        server.createContext("/v3/pair",ex->handleSetup(ex,setup,token,true));
+        server.createContext("/v3/claim",ex->{
             try{
                 ex.getResponseHeaders().set("Cache-Control","no-store");ex.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");
-                if(!ex.getRequestURI().getRawPath().equals("/v3/setup")||ex.getRequestURI().getRawQuery()!=null){ex.sendResponseHeaders(404,-1);return;}
+                if(!ex.getRequestURI().getRawPath().equals("/v3/claim")||ex.getRequestURI().getRawQuery()!=null){ex.sendResponseHeaders(404,-1);return;}
                 if(!ex.getRequestMethod().equals("POST")){ex.sendResponseHeaders(405,-1);return;}
-                if(!authorized(ex)){ex.sendResponseHeaders(401,-1);return;}
                 if(!admission.enter()){ex.sendResponseHeaders(503,-1);return;}
                 try{
-                    // Require a small fixed-length request; no streaming or compression.
-                    String length=ex.getRequestHeaders().getFirst("Content-Length");
-                    if(length==null||!length.matches("[0-9]{1,3}")||Integer.parseInt(length)>512){ex.sendResponseHeaders(413,-1);return;}
-                    byte[] body=ex.getRequestBody().readNBytes(Integer.parseInt(length));
-                    if(body.length!=Integer.parseInt(length)){ex.sendResponseHeaders(400,-1);return;}
-                    var staged=setup.stage(new String(body,StandardCharsets.US_ASCII),token,System.currentTimeMillis());
-                    if(staged==null){ex.sendResponseHeaders(403,-1);return;}
-                    byte[] reply=("{\"state\":\"PENDING\",\"id\":\""+staged.id()+"\"}").getBytes(StandardCharsets.UTF_8);
+                    String secret=ex.getRequestHeaders().getFirst("Authorization");
+                    if(secret==null||!secret.matches("Bearer [a-f0-9]{64}")||!"16".equals(ex.getRequestHeaders().getFirst("Content-Length"))){ex.sendResponseHeaders(403,-1);return;}
+                    String id=new String(ex.getRequestBody().readNBytes(16),StandardCharsets.US_ASCII);
+                    if(!setup.claim(id,secret.substring(7),System.currentTimeMillis())){ex.sendResponseHeaders(403,-1);return;}
+                    byte[] reply=("{\"token\":\""+token+"\"}").getBytes(StandardCharsets.UTF_8);
                     ex.sendResponseHeaders(200,reply.length);ex.getResponseBody().write(reply);
                 }finally{admission.leave();}
             }finally{ex.close();}
@@ -58,6 +58,28 @@ final class PullHttp implements AutoCloseable {
             }finally{try{ex.close();}finally{admission.leave();}}
         });
         try{server.start();}catch(RuntimeException e){server.stop(0);workers.shutdownNow();throw e;}
+    }
+    private void handleSetup(HttpExchange ex,SetupRequest setup,String token,boolean bootstrap)throws IOException{
+        try{
+            ex.getResponseHeaders().set("Cache-Control","no-store");ex.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");
+            if(!ex.getRequestURI().getRawPath().equals(bootstrap?"/v3/pair":"/v3/setup")||ex.getRequestURI().getRawQuery()!=null){ex.sendResponseHeaders(404,-1);return;}
+            if(!ex.getRequestMethod().equals("POST")){ex.sendResponseHeaders(405,-1);return;}
+            String supplied=ex.getRequestHeaders().getFirst("Authorization");
+            if(bootstrap?(supplied==null||!supplied.matches("Bearer [a-f0-9]{32}")):!authorized(ex)){ex.sendResponseHeaders(401,-1);return;}
+            if(!admission.enter()){ex.sendResponseHeaders(503,-1);return;}
+            try{
+                String length=ex.getRequestHeaders().getFirst("Content-Length");
+                if(length==null||!length.matches("[0-9]{1,3}")||Integer.parseInt(length)>512){ex.sendResponseHeaders(413,-1);return;}
+                byte[] body=ex.getRequestBody().readNBytes(Integer.parseInt(length));
+                if(body.length!=Integer.parseInt(length)){ex.sendResponseHeaders(400,-1);return;}
+                String raw=new String(body,StandardCharsets.US_ASCII);
+                if(bootstrap&&!raw.startsWith(supplied.substring(7)+"\\n")){ex.sendResponseHeaders(403,-1);return;}
+                var staged=setup.stage(raw,token,System.currentTimeMillis(),bootstrap);
+                if(staged==null){ex.sendResponseHeaders(403,-1);return;}
+                byte[] reply=("{\"state\":\"PENDING\",\"id\":\""+staged.id()+"\"}").getBytes(StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(200,reply.length);ex.getResponseBody().write(reply);
+            }finally{admission.leave();}
+        }finally{ex.close();}
     }
     void publish(String json,long sentAt){
         byte[] bytes=json.getBytes(StandardCharsets.UTF_8);

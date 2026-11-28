@@ -367,7 +367,7 @@ public final class OrionBridge extends JavaPlugin {
 
     private void stopSession(){
         if(task!=null){task.cancel();task=null;}
-        setup.cancel();Session old=session;session=null;
+        setup.cancelPending();Session old=session;session=null;
         if(old!=null)old.close();
     }
 
@@ -390,13 +390,14 @@ public final class OrionBridge extends JavaPlugin {
                 var c=request.credentials();
                 if(!c.feature().equals("CREDENTIALS")){
                     if(activeConfig==null||control==null||!CategoryConfig.same(activeConfig,CategoryConfig.load(this)))throw new java.io.IOException("Finish credential setup and reload local edits before adding features");
-                    if(!c.feature().equals("CHAT")&&!getServer().getOnlineMode()&&activeConfig.getString("verification.authme-realm","").isBlank()&&!installed("floodgate"))
+                    if(java.util.Set.of("LINK","FORCE").contains(c.feature())&&!getServer().getOnlineMode()&&activeConfig.getString("verification.authme-realm","").isBlank()&&!installed("floodgate"))
                         throw new java.io.IOException("Offline Java needs a trusted AuthMe realm before linking");
                     if(c.feature().equals("FORCE")&&(verification==null||!verification.forced()&&getServer().getOnlinePlayers().stream().noneMatch(p->verification.authorized(p.getUniqueId()))))
                         throw new java.io.IOException("Test optional linking with an online authorized player before enforcing it");
                 }
                 SetupConfig.provision(getDataFolder().toPath(),c);
                 var result=reloadAll();
+                if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED)setup.approve(request,System.currentTimeMillis());
                 messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
             }catch(Exception e){getLogger().warning("Setup could not apply: "+(e instanceof java.io.IOException?e.getMessage():"Invalid setup settings"));messages.send(sender,"setup.failed");}
             return;
@@ -563,5 +564,5 @@ public final class OrionBridge extends JavaPlugin {
         if(audit!=null){audit.close();audit=null;}
         recovery=null;control=null;
     }
-    @Override public void onDisable(){stopServices();clearFallback();activeConfig=null;retainedGuard=null;}
+    @Override public void onDisable(){setup.cancel();stopServices();clearFallback();activeConfig=null;retainedGuard=null;}
 }

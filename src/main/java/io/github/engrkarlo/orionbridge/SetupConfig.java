@@ -31,17 +31,16 @@ final class SetupConfig {
         var j=new YamlConfiguration();
         j.set("feature",c.feature());j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
         // Only new services are automatically activated. Existing settings remain exactly as chosen.
-        j.set("enable-audit",p.audit().getString("audit.signing-key","").isEmpty());
+        j.set("enable-audit",c.feature().equals("AUDIT"));
         j.set("enable-control",p.control().getString("control.signing-key","").isEmpty());
         featurePlan(dir,c.feature()); // Validate all affected files before committing the intent.
         CategoryConfig.save(journal(dir),j);
         recover(dir);
     }
     private static java.util.Map<String,YamlConfiguration> featurePlan(Path dir,String action)throws Exception{
-        if(action.equals("CREDENTIALS"))return java.util.Map.of();
+        if(action.equals("CREDENTIALS")||action.equals("AUDIT"))return java.util.Map.of();
         var v=CategoryConfig.read(dir.resolve("config/verification.yml"));
         var chat=CategoryConfig.read(dir.resolve("config/chat.yml"));
-        var control=CategoryConfig.read(dir.resolve("config/control.yml"));
         boolean active=v.getBoolean("verification.enabled")&&v.getBoolean("verification.setup-complete");
         boolean force=active&&v.getBoolean("verification.force",true);
         // Explicitly enabled features never downgrade a previously active forced policy.

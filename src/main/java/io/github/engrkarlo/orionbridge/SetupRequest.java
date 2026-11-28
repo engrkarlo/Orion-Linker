@@ -13,38 +13,49 @@ final class SetupRequest {
     private long expires;
     private int attempts;
     private Pending pending;
+    private Receipt receipt;
+    private record Receipt(String id,String claimHash,long expires){}
     record Credentials(String guild,String server,String actor,String audit,String control,String network,String feature) {
         Credentials(String guild,String server,String actor,String audit,String control,String network){this(guild,server,actor,audit,control,network,"CREDENTIALS");}
         Credentials {
             if(!guild.matches("[0-9]{17,20}")||!server.matches("[a-f0-9]{16}")||!actor.matches("[0-9]{17,20}")
                 ||!audit.matches("[a-f0-9]{64}")||!control.matches("[a-f0-9]{64}")||!network.matches("[a-f0-9]{64}")
                 ||audit.equals(control)||audit.equals(network)||control.equals(network)
-                ||!java.util.Set.of("CREDENTIALS","CHAT","LINK","FORCE").contains(feature))
+                ||!java.util.Set.of("CREDENTIALS","CHAT","LINK","FORCE","AUDIT").contains(feature))
                 throw new IllegalArgumentException("Invalid setup credentials");
         }
         @Override public String toString(){return "Credentials[redacted]";}
         boolean distinct(String token){return !audit.equals(token)&&!control.equals(token)&&!network.equals(token);}
     }
-    record Pending(String id,Credentials credentials,long expires){}
+    record Pending(String id,Credentials credentials,long expires,String claimHash){}
     private String secret(int bytes){byte[] value=new byte[bytes];random.nextBytes(value);return HexFormat.of().formatHex(value);}
-    synchronized String open(long now){code=secret(16);expires=now+TTL;attempts=0;pending=null;return code;}
-    synchronized void cancel(){code=null;expires=0;pending=null;}
-    synchronized Pending stage(String raw,String token,long now){
+    synchronized String open(long now){code=secret(16);expires=now+TTL;attempts=0;pending=null;receipt=null;return code;}
+    synchronized void cancelPending(){code=null;expires=0;pending=null;}
+    synchronized void cancel(){cancelPending();receipt=null;}
+    private static String hash(String value){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.US_ASCII)));}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
+    synchronized Pending stage(String raw,String token,long now){return stage(raw,token,now,false);}
+    synchronized Pending stage(String raw,String token,long now,boolean bootstrap){
         if(code==null||now>=expires||raw.length()>512)return null;
-        if(++attempts>8){cancel();return null;}
+        if(!bootstrap&&++attempts>8){cancelPending();return null;}
         String[] parts=raw.split("\\n",-1);
-        if((parts.length!=7&&parts.length!=8)||parts[0].length()!=32||!MessageDigest.isEqual(code.getBytes(StandardCharsets.US_ASCII),parts[0].getBytes(StandardCharsets.US_ASCII)))return null;
+        if((bootstrap?parts.length!=9:parts.length!=7&&parts.length!=8)||parts[0].length()!=32||!MessageDigest.isEqual(code.getBytes(StandardCharsets.US_ASCII),parts[0].getBytes(StandardCharsets.US_ASCII)))return null;
         Credentials creds;
-        try{creds=new Credentials(parts[1],parts[2],parts[3],parts[4],parts[5],parts[6],parts.length==8?parts[7]:"CREDENTIALS");}catch(IllegalArgumentException e){return null;}
-        if(!creds.distinct(token))return null;
+        try{creds=new Credentials(parts[1],parts[2],parts[3],parts[4],parts[5],parts[6],parts.length>=8?parts[7]:"CREDENTIALS");}catch(IllegalArgumentException e){return null;}
+        if(!creds.distinct(token)||bootstrap&&(!creds.feature().equals("CREDENTIALS")||!parts[8].matches("[a-f0-9]{64}")||parts[8].equals(token)))return null;
         code=null;
-        pending=new Pending(secret(8),creds,expires);
+        pending=new Pending(secret(8),creds,expires,bootstrap?hash(parts[8]):null);
         return pending;
     }
-    synchronized Pending peek(long now){if(now>=expires){cancel();return null;}return pending;}
+    synchronized Pending peek(long now){if(now>=expires){cancelPending();return null;}return pending;}
     synchronized Pending consume(String id,long now){
         var value=peek(now);
         if(value==null||!value.id().equals(id))return null;
-        cancel();return value;
+        cancelPending();return value;
+    }    synchronized void approve(Pending value,long now){
+        if(value.claimHash()!=null&&value.expires()>now)receipt=new Receipt(value.id(),value.claimHash(),value.expires());
+    }
+    synchronized boolean claim(String id,String secret,long now){
+        if(receipt==null||now>=receipt.expires()){receipt=null;return false;}
+        return receipt.id().equals(id)&&secret!=null&&secret.matches("[a-f0-9]{64}")&&MessageDigest.isEqual(receipt.claimHash().getBytes(StandardCharsets.US_ASCII),hash(secret).getBytes(StandardCharsets.US_ASCII));
     }
 }
