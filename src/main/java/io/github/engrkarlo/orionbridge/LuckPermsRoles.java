@@ -16,12 +16,15 @@ final class LuckPermsRoles implements AutoCloseable {
     private final LuckPerms api=LuckPermsProvider.get();
     private final OrionBridge plugin;
     private final Set<String> groups,permissions;
-    private final boolean offlineReconciliation;
+    private final boolean offlineReconciliation,observedOffline;
+    private final String authmeRealm;
     private final java.util.concurrent.Semaphore rankSlots=new java.util.concurrent.Semaphore(4);
     private final Map<UUID,Map<String,InheritanceNode>> owned=new HashMap<>();
     LuckPermsRoles(OrionBridge plugin,YamlConfiguration cfg){
         this.plugin=plugin;
         offlineReconciliation=cfg.getBoolean("roles.offline-reconciliation",true);
+        observedOffline=cfg.getBoolean("roles.offline-observed-identities",false);
+        authmeRealm=cfg.getString("verification.authme-realm","");
         groups=Set.copyOf(cfg.getStringList("roles.allowed-groups"));
         permissions=Set.copyOf(cfg.getStringList("roles.allowed-permissions"));
     }
@@ -35,11 +38,22 @@ final class LuckPermsRoles implements AutoCloseable {
         if(!offlineReconciliation)return "{\"result\":\"DISABLED\"}";
         String[] requested=body.split("\\n",-1);
         if(requested.length<1||requested.length>4||new HashSet<>(Arrays.asList(requested)).size()!=requested.length)throw new IllegalArgumentException("Invalid rank query");
-        for(String id:requested)if(!SanctionState.validIdentity(id)||!(id.startsWith("java:")||id.startsWith("bedrock:")))throw new IllegalArgumentException("Java or Floodgate identity required");
+        Map<String,UUID> ids=new LinkedHashMap<>(),observed=new HashMap<>();
+        Set<String> seen=new HashSet<>();
+        for(String line:requested){
+            String[] fields=line.split("\\|",-1);
+            String id=fields[0];
+            if(!SanctionState.validIdentity(id)||!seen.add(id)||fields.length!=1&&fields.length!=3)throw new IllegalArgumentException("Invalid rank identity");
+            UUID uuid;
+            if(fields.length==3){
+                uuid=observedRankUuid(id,fields[1],fields[2]);if(uuid!=null)observed.put(id,uuid);
+            }else if(id.startsWith("java:")||id.startsWith("bedrock:"))uuid=rankUuid(id);
+            else uuid=null;
+            if(uuid!=null)ids.put(id,uuid);
+        }
         Map<String,java.util.concurrent.CompletableFuture<String>> queries=new LinkedHashMap<>();
-        for(String id:requested){
-            UUID uuid=rankUuid(id);
-            if(uuid==null)continue;
+        for(var entry:ids.entrySet()){
+            String id=entry.getKey();UUID uuid=entry.getValue();
             User cached=api.getUserManager().getUser(uuid);
             if(cached!=null){queries.put(id,java.util.concurrent.CompletableFuture.completedFuture(cached.getPrimaryGroup()));continue;}
             if(!rankSlots.tryAcquire())continue;
@@ -58,9 +72,29 @@ final class LuckPermsRoles implements AutoCloseable {
         List<String> rows=new ArrayList<>();
         for(var e:queries.entrySet())if(e.getValue().isDone()&&!e.getValue().isCompletedExceptionally()){
             String group=e.getValue().getNow(null);
-            if(group!=null&&group.matches("[a-z0-9_-]{1,40}"))rows.add(OrionBridge.quote(e.getKey())+":"+OrionBridge.quote(group));
+            if(group!=null&&group.matches("[a-z0-9_-]{1,40}")&&(!observed.containsKey(e.getKey())||observedSessionMatches(e.getKey(),observed.get(e.getKey()))))rows.add(OrionBridge.quote(e.getKey())+":"+OrionBridge.quote(group));
         }
         return "{\"result\":\"OK\",\"groups\":{"+String.join(",",rows)+"}}";
+    }
+    private boolean observedSessionMatches(String identity,UUID uuid){
+        var gate=plugin.verification();
+        if(gate==null)return false;
+        var s=gate.session(uuid);
+        return s==null||identity.equals(s.identity());
+    }
+    private UUID observedRankUuid(String identity,String raw,String observedAt){
+        if(!observedOffline||!raw.matches("[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}")||!observedAt.matches("[0-9]{1,16}"))return null;
+        long seen=Long.parseLong(observedAt),now=System.currentTimeMillis();
+        if(seen>now+5000L||now-seen>86400000L)return null;
+        UUID uuid=UUID.fromString(raw);
+        if(uuid.getMostSignificantBits()==0&&uuid.getLeastSignificantBits()==0)return null;
+        if(identity.startsWith("authme:")){
+            if(authmeRealm.isBlank()||!identity.startsWith("authme:"+authmeRealm+":")||!plugin.getServer().getPluginManager().isPluginEnabled("AuthMe"))return null;
+        }else if(identity.startsWith("bedrock:")){
+            // A wrong canonical XUID UUID is never eligible as an observed mapping.
+            if(uuid.getMostSignificantBits()==0||!plugin.getServer().getPluginManager().isPluginEnabled("floodgate"))return null;
+        }else return null;
+        return observedSessionMatches(identity,uuid)?uuid:null;
     }
     private UUID rankUuid(String id){
         if(id.startsWith("java:")){

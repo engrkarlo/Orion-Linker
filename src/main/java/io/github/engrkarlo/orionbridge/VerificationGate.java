@@ -34,11 +34,16 @@ final class VerificationGate implements Listener,AutoCloseable {
     String profile(UUID player){
         var s=state.get(player);
         var t=trusted.get(player);long now=System.currentTimeMillis();
-        return active&&s!=null&&s.verified(now)&&t!=null&&t.until()>now?t.profile():null;
+        return linkedIdentity(player)!=null&&t!=null&&t.until()>now?t.profile():null;
     }
     String linkedIdentity(UUID player){
         var s=state.get(player);
-        return active&&s!=null&&s.verified(System.currentTimeMillis())?s.identity():null;
+        if(!active||s==null||!s.verified(System.currentTimeMillis()))return null;
+        if(org.bukkit.Bukkit.isPrimaryThread()){
+            Player p=plugin.getServer().getPlayer(player);
+            if(p==null||!Objects.equals(s.identity(),identities.resolve(p)))return null;
+        }
+        return s.identity();
     }
     VerificationState.Session session(UUID player){return active?state.get(player):null;}
     boolean authorized(UUID player){return linkedIdentity(player)!=null;}
@@ -81,6 +86,9 @@ final class VerificationGate implements Listener,AutoCloseable {
         if(current==null||!Objects.equals(current.identity(),identity)){
             trusted.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);
             state.join(id,identity);lastShown.remove(id);
+        }
+        if(identity==null&&args.length==1&&args[0].equalsIgnoreCase("link")){
+            p.sendMessage(Component.text("Authenticate with the server first, then run /ob link. Gameplay remains restricted."));return true;
         }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){
@@ -196,7 +204,7 @@ final class VerificationGate implements Listener,AutoCloseable {
             return parts.length==1||parts.length==2&&Set.of("link","account","help").contains(parts[1].toLowerCase(Locale.ROOT))||parts.length==3&&parts[1].equalsIgnoreCase("confirm")&&parts[2].matches("[a-fA-F0-9-]{36}");
         }
         var s=state.get(p.getUniqueId());
-        return (s==null||s.identity()==null)&&resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
+        return resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
     @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}

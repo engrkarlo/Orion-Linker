@@ -1,4 +1,4 @@
-# Configuration reference — v10
+# Configuration reference — v12
 
 The bundled config.yml is the authoritative list of keys. Missing fields migrate with existing values preserved. Restart Paper after changing anything except telemetry connection settings. Keep backups private; they may contain credentials.
 
@@ -50,3 +50,7 @@ Optional guard.protected-regions is a list of up to 32 inclusive cuboids. Exampl
 ## Scoped task profiles (config v11)
 
 Each local `guard.profiles.<name>.worldedit-scope` may restrict `worlds`, inclusive `regions` (world, x1,y1,z1,x2,y2,z2), `operations` (BLOCK, BIOME, ENTITY) and resolved `commands` (`worldedit:set`, etc.). Empty world/region/command lists mean no additional restriction; an explicitly empty operations list denies all extent mutations. Both region and world restrictions apply when set. Biome writes must fit the entire 4×4×4 cell. Global protected worlds/regions always win. A temporary profile selected and independently approved in Discord inherits these limits and existing operation/minute ceilings; it does not override Bukkit permissions. Use separate named profiles for specific jobs. Direct WE entity removal commands are denied when extent enforcement is on because they may bypass the guarded extent. Enabled non-player edits have separate bounded operation/minute budgets and are blocked during lockdown. Direct API writes and untested FAWE paths remain outside guarantees.
+
+## Observed offline ranks (v12)
+
+`roles.offline-observed-identities: false` is the default. Enable it together with Discord Role Sync > Observed ranks only where the server's AuthMe/Floodgate UUID mapping is stable. Signed lookups use the last authenticated linked identity/UUID observation, scoped to this server, for up to 24 hours. AuthMe must use the configured realm and be enabled. Noncanonical Floodgate UUIDs require Floodgate and cannot be confused with a different canonical XUID UUID. A contradictory current session rejects the lookup. External offline remapping is not authoritative or detectable in every deployment; disable this feature when mappings can change externally. Unknown rank results retain existing owned role state until a valid lookup or another explicit policy change.

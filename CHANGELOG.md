@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Config v12 adds opt-in bounded observed offline AuthMe/noncanonical Bedrock rank queries, and rechecks authenticated identity before local profile/account authorization.
 - Config v11 adds local world/region/operation/command restrictions for named task profiles, non-player edit budgets and direct entity command denial.
 - Persist individual automatic containment by authenticated identity with independent deadlines and bounded storage.
 - Preserve unexpired linking challenges across client reconnects; discard stale session IDs, confirmations and authorization leases. Avoid opening verification menus before AuthMe authentication and recheck identity on player actions.
