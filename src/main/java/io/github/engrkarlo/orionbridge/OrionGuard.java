@@ -129,7 +129,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void interact(PlayerInteractEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void inventory(InventoryClickEvent e){
-        if(!(e.getWhoClicked() instanceof Player p)||VerificationMenus.owns(e.getView().getTopInventory()))return;
+        if(!(e.getWhoClicked() instanceof Player p)||VerificationMenus.owns(e.getView().getTopInventory())||DashboardMenus.owns(e.getView().getTopInventory()))return;
         if(blocked(p)){e.setCancelled(true);return;}
         if(e.getRawSlot()<0||e.getRawSlot()>=e.getView().getTopInventory().getSize()||e.getCurrentItem()==null)return;
         int count=containers.computeIfAbsent(p.getUniqueId(),k->new Counter()).add(System.currentTimeMillis(),e.getCurrentItem().getAmount(),60);

@@ -41,6 +41,7 @@ public final class OrionBridge extends JavaPlugin {
     private LuckPermsRoles roles;
     private ChatRelay chat;
     private CoreProtectRecovery recovery;
+    private DashboardMenus dashboards;
     private final BridgeMetrics metrics=new BridgeMetrics();
     BridgeMetrics metrics(){return metrics;}
     CoreProtectRecovery recovery(){return recovery;}
@@ -107,6 +108,7 @@ public final class OrionBridge extends JavaPlugin {
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
             if(settings.mode().equals("pull")&&cfg.getBoolean("recovery.enabled",false))try{recovery=new CoreProtectRecovery(this,cfg);}catch(ReflectiveOperationException|RuntimeException e){getLogger().warning("CoreProtect recovery unavailable; check plugin API.");}
+            dashboards=new DashboardMenus(this,cfg);
             apply(settings);
         }
         catch(Exception e){getLogger().warning("Bridge inactive: "+safeError(e)+". Correct config.yml and run /ob reload.");}
@@ -215,6 +217,18 @@ public final class OrionBridge extends JavaPlugin {
         if(sender instanceof Player player&&args.length>=2&&args[0].equalsIgnoreCase("staffchat")){
             boolean sent=chat!=null&&chat.staff(player,String.join(" ",java.util.Arrays.copyOfRange(args,1,args.length)));
             if(!sent)sender.sendMessage("Staff chat unavailable or not authorized.");return true;
+        }
+        if(sender instanceof Player player&&dashboards!=null){
+            String sub=args.length==0?"account":args[0].toLowerCase(java.util.Locale.ROOT);
+            if(sub.equals("admin")&&args.length==1){dashboards.adminMenu(player);return true;}
+            if(verification!=null&&verification.authorized(player.getUniqueId())){
+                if(java.util.Set.of("account","roles","punishments","report","appeal").contains(sub)&&args.length<=1){
+                    if(sub.equals("report")||sub.equals("appeal"))dashboards.report(player);
+                    else if(sub.equals("punishments"))dashboards.punishments(player,verification.linkedIdentity(player.getUniqueId()),false);
+                    else dashboards.account(player);
+                    return true;
+                }
+            }
         }
         if(sender instanceof Player player&&verification!=null&&verification.playerCommand(player,args))return true;
         if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob account | /ob link | /ob reload");return true;}
@@ -364,6 +378,7 @@ public final class OrionBridge extends JavaPlugin {
         if(audit!=null){audit.close();audit=null;}
         if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}
         if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}
+        if(dashboards!=null){dashboards.close();dashboards=null;}
         if(chat!=null){chat.close();chat=null;}
         if(guard!=null){guard.close();guard=null;}
         if(roles!=null){roles.close();roles=null;}

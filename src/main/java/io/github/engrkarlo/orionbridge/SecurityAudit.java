@@ -52,6 +52,8 @@ final class SecurityAudit implements Listener,AutoCloseable {
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();ops.put(p.getUniqueId(),p.isOp());emit(p,"JOIN","Player joined: "+p.getName()+"; operator="+p.isOp());}
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());identities.forget(p.getUniqueId());}
+    @EventHandler(priority=EventPriority.MONITOR) public void death(org.bukkit.event.entity.PlayerDeathEvent e){emit(e.getEntity(),"DEATH","Player died: "+e.getEntity().getName());}
+    @EventHandler(priority=EventPriority.MONITOR) public void advancement(PlayerAdvancementDoneEvent e){emit(e.getPlayer(),"ADVANCEMENT","Player "+e.getPlayer().getName()+" completed "+e.getAdvancement().getKey());}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void broken(BlockBreakEvent e){count(e.getPlayer());}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void placed(BlockPlaceEvent e){count(e.getPlayer());}
     private void count(Player p){

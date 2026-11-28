@@ -70,11 +70,16 @@ final class LocalModeration implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void interactEntity(PlayerInteractEntityEvent e){if(frozen(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drop(PlayerDropItemEvent e){if(frozen(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void pickup(EntityPickupItemEvent e){if(e.getEntity() instanceof Player p&&frozen(p))e.setCancelled(true);}
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void open(InventoryOpenEvent e){if(e.getPlayer() instanceof Player p&&frozen(p))e.setCancelled(true);}
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void click(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&frozen(p))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void open(InventoryOpenEvent e){if(e.getPlayer() instanceof Player p&&frozen(p)&&!VerificationMenus.owns(e.getInventory())&&!DashboardMenus.owns(e.getInventory()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void click(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&frozen(p)&&!VerificationMenus.owns(e.getView().getTopInventory())&&!DashboardMenus.owns(e.getView().getTopInventory()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drag(InventoryDragEvent e){if(e.getWhoClicked() instanceof Player p&&frozen(p))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void chat(AsyncChatEvent e){if(frozen(e.getPlayer())||has(e.getPlayer(),SanctionState.Kind.MUTE))e.setCancelled(true);}
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void command(PlayerCommandPreprocessEvent e){if(frozen(e.getPlayer())||has(e.getPlayer(),SanctionState.Kind.COMMAND_RESTRICTION))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void command(PlayerCommandPreprocessEvent e){if(frozen(e.getPlayer())||has(e.getPlayer(),SanctionState.Kind.COMMAND_RESTRICTION)){
+        String[] parts=e.getMessage().substring(1).strip().split("\\s+");
+        var cmd=plugin.getServer().getPluginCommand(parts[0]);
+        boolean self=cmd!=null&&cmd.getPlugin()==plugin&&cmd.getName().equals("ob")&&(parts.length==1||parts.length==2&&Set.of("account","link","help","punishments","appeal","report","roles").contains(parts[1].toLowerCase(Locale.ROOT))||parts.length==3&&parts[1].equalsIgnoreCase("confirm"));
+        if(!self)e.setCancelled(true);
+    }}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageByEntityEvent e){
         if(e.getDamager() instanceof Player p&&frozen(p))e.setCancelled(true);
         if(e.getDamager() instanceof org.bukkit.entity.Projectile projectile&&projectile.getShooter() instanceof Player p&&frozen(p))e.setCancelled(true);

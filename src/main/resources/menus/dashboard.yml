@@ -1,0 +1,15 @@
+theme-version: 1
+title-prefix: '<light_purple>OrionBridge</light_purple> <gray>·</gray> '
+labels:
+  punishments: '<white>Punishments</white>'
+  report: '<white>Report / appeal</white>'
+  refresh: '<white>Refresh account</white>'
+  admin: '<light_purple>Administration</light_purple>'
+  players: '<white>Online players</white>'
+  search: '<white>Search identity</white>'
+  performance: '<white>Performance</white>'
+  account: '<white>My account</white>'
+  request: '<red>Request punishment</red>'
+  back: '<gray>Back</gray>'
+  previous: '<gray>Previous page</gray>'
+  next: '<gray>Next page</gray>'

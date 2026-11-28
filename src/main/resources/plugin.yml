@@ -15,7 +15,10 @@ permissions:
   orionbridge.admin:
     description: View bridge diagnostics.
     default: op
+  orionbridge.admin.gui:
+    description: Open trusted administrator dashboard (linked staff profile also required).
+    default: false
 commands:
   ob:
     description: Manage OrionBridge.
-    usage: /ob account | /ob link | /ob reload
+    usage: /ob account | /ob link | /ob admin | /ob reload
