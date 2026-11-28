@@ -26,10 +26,13 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final Set<String> protectedWorlds;
     private final GuardBudget editBudget=new GuardBudget();
     private final AtomicLong lockdownUntil=new AtomicLong();
-    private final Map<UUID,Long> lastAlert=new ConcurrentHashMap<>();
+    private record AlertKey(UUID player,String kind){}
+    private final Map<AlertKey,Long> lastAlert=new ConcurrentHashMap<>();
+    private final GuardContainment containment=new GuardContainment();
+    private final Map<String,GuardContainment.Rule> rules;
     private final Map<UUID,Counter> blocks=new HashMap<>();
     private final Map<UUID,Counter> containers=new HashMap<>();
-    private final Map<UUID,Long> restrictedUntil=new HashMap<>();
+
     private final Counter joins=new Counter(),entities=new Counter();
     private final int ordinaryBlocks,joinLimit,entityLimit,containerLimit,containSeconds,lockSeconds;
     private final boolean allowNonPlayerEdits,blockCommands,blockEdits;
@@ -59,20 +62,32 @@ final class OrionGuard implements Listener,AutoCloseable {
         containerLimit=clamp(config.getInt("guard.container-items-per-minute",4096),64,100000);
         containSeconds=clamp(config.getInt("guard.containment-seconds",60),5,3600);
         lockSeconds=clamp(config.getInt("guard.join-lockdown-seconds",0),0,3600);
+        Map<String,GuardContainment.Rule> configured=new HashMap<>();
+        for(String kind:List.of("GUARD_COMMAND_BLOCKED","WORLDEDIT_BLOCKED","GUARD_BLOCK_LIMIT","CONTAINER_ACTIVITY","JOIN_SPIKE","ENTITY_SPIKE","EXPLOSION_ACTIVITY")){
+            String base="guard.rules."+kind+".";
+            var fallback=kind.equals("GUARD_BLOCK_LIMIT")?GuardContainment.Type.QUARANTINE:kind.equals("JOIN_SPIKE")&&lockSeconds>0?GuardContainment.Type.LOCKDOWN:GuardContainment.Type.ALERT;
+            var type=GuardContainment.Type.valueOf(config.getString(base+"response",fallback.name()).toUpperCase(Locale.ROOT));
+            if(type==GuardContainment.Type.LOCKDOWN&&!kind.equals("JOIN_SPIKE"))throw new IllegalArgumentException("Lockdown response only supported for JOIN_SPIKE");
+            if(Set.of("JOIN_SPIKE","ENTITY_SPIKE").contains(kind)&&type!=GuardContainment.Type.ALERT&&type!=GuardContainment.Type.LOCKDOWN)throw new IllegalArgumentException("Unattributed rule cannot restrict a player");
+            String severity=config.getString(base+"severity",Set.of("GUARD_COMMAND_BLOCKED","WORLDEDIT_BLOCKED").contains(kind)?"CRITICAL":"MEDIUM").toUpperCase(Locale.ROOT);
+            if(!Set.of("LOW","MEDIUM","HIGH","CRITICAL").contains(severity))throw new IllegalArgumentException("Invalid rule severity");
+            configured.put(kind,new GuardContainment.Rule(config.getBoolean(base+"enabled",true),type,clamp(config.getInt(base+"duration-seconds",kind.equals("JOIN_SPIKE")?Math.max(5,lockSeconds):containSeconds),5,3600),severity,clamp(config.getInt(base+"cooldown-seconds",5),1,3600)));
+        }
+        rules=Map.copyOf(configured);
         allowNonPlayerEdits=config.getBoolean("guard.allow-non-player-edits",false);
         blockCommands=config.getBoolean("guard.block-sensitive-commands",true);
         blockEdits=config.getBoolean("guard.enforce-worldedit",true);
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
         cleanup=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{
             long now=System.currentTimeMillis();
-            restrictedUntil.entrySet().removeIf(e->e.getValue()<=now);
-            lastAlert.entrySet().removeIf(e->e.getValue()<now-120000);
+            containment.prune(now);
+            lastAlert.entrySet().removeIf(e->e.getValue()<now-3600000);
             editBudget.prune(System.nanoTime());
         },200L,200L);
     }
     private static int clamp(int n,int low,int high){return Math.max(low,Math.min(high,n));}
     boolean open(){return open;}
-    Profile profile(UUID id){return gate==null?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
+    Profile profile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
     String identity(UUID id){return gate==null?null:gate.linkedIdentity(id);}
     boolean staffChat(UUID id){return profile(id).staffChat();}
     boolean profileStaffChat(String name){return profiles.getOrDefault(name,ORDINARY).staffChat();}
@@ -85,15 +100,31 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     private void evidence(String kind,String id,String detail,String source){if(audit!=null)audit.external(kind,id,detail,source);}
     void external(String kind,String identity,String detail,String source){evidence(kind,identity,detail,source);}
+    void rule(UUID player,String identity,String kind,String detail,String source){
+        var policy=rules.get(kind);
+        if(policy==null||!policy.enabled())return;
+        long now=System.currentTimeMillis();
+        var key=new AlertKey(player,kind);
+        if(lastAlert.size()>=20000&&!lastAlert.containsKey(key)){lastAlert.entrySet().removeIf(e->e.getValue()<now-120000);if(lastAlert.size()>=20000)return;}
+        Long prior=lastAlert.putIfAbsent(key,now);
+        if(prior!=null&&(now-prior<policy.cooldownSeconds()*1000L||!lastAlert.replace(key,prior,now)))return;
+        var type=policy.type();
+        if(type==GuardContainment.Type.LOCKDOWN){
+            lockdownUntil.accumulateAndGet(now+policy.seconds()*1000L,Math::max);
+        }else if(player!=null&&identity!=null)containment.apply(player,type,now+policy.seconds()*1000L);
+        else type=GuardContainment.Type.ALERT;
+        evidence(kind,identity,"Severity="+policy.severity()+"; response="+type+"; duration="+(type==GuardContainment.Type.ALERT?0:policy.seconds())+"s; "+detail,source);
+    }
     private void alert(Player p,String kind,String detail){
-        long now=System.currentTimeMillis();UUID id=p.getUniqueId();
-        Long previous=lastAlert.putIfAbsent(id,now);
-        if(previous!=null&&(now-previous<5000||!lastAlert.replace(id,previous,now)))return;
-        evidence(kind,plugin.identities().resolve(p),"Player "+p.getName()+"; "+detail,"OrionGuard");
+        if(rules.containsKey(kind))rule(p.getUniqueId(),plugin.identities().resolve(p),kind,"Player "+p.getName()+"; "+detail,"OrionGuard");
+        else{
+            long now=System.currentTimeMillis();var key=new AlertKey(p.getUniqueId(),kind);Long prior=lastAlert.putIfAbsent(key,now);
+            if(prior==null||now-prior>=5000&&lastAlert.replace(key,prior,now))evidence(kind,plugin.identities().resolve(p),"Player "+p.getName()+"; "+detail,"OrionGuard");
+        }
     }
-    private boolean blocked(Player p){
-        return restrictedUntil.getOrDefault(p.getUniqueId(),0L)>System.currentTimeMillis()||lockdown()&&!profile(p.getUniqueId()).lockdown();
-    }
+    private boolean frozen(UUID id){return containment.denied(id,GuardContainment.Type.FREEZE,System.currentTimeMillis())||lockdown()&&!profile(id).lockdown();}
+    private boolean blocked(Player p){return frozen(p.getUniqueId());}
+    private boolean denied(Player p,GuardContainment.Type type){return blocked(p)||containment.denied(p.getUniqueId(),type,System.currentTimeMillis());}
     private boolean safeCommand(String raw,Command command){
         if(!(command instanceof PluginIdentifiableCommand owned))return false;
         return owned.getPlugin()==plugin&&command.getName().equals("ob")
@@ -104,7 +135,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         String raw=input.substring(1).stripLeading().split("\\s+",2)[0].toLowerCase(Locale.ROOT);
         Command resolved=plugin.getServer().getCommandMap().getCommand(raw);
         if(safeCommand(raw,resolved))return;
-        if(blocked(player)){e.setCancelled(true);return;}
+        if(denied(player,GuardContainment.Type.COMMAND_RESTRICTION)){e.setCancelled(true);return;}
         String owner=resolved instanceof PluginIdentifiableCommand pc?pc.getPlugin().getName().toLowerCase(Locale.ROOT):"minecraft";
         String canonical=resolved==null?raw:resolved.getName().toLowerCase(Locale.ROOT);
         String name=canonical.substring(canonical.lastIndexOf(':')+1).replaceFirst("^/+","");
@@ -119,12 +150,12 @@ final class OrionGuard implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void breakBlock(BlockBreakEvent e){if(!block(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void placeBlock(BlockPlaceEvent e){if(!block(e.getPlayer()))e.setCancelled(true);}
     private boolean block(Player player){
-        if(blocked(player))return false;
+        if(denied(player,GuardContainment.Type.BUILD_RESTRICTION))return false;
         UUID id=player.getUniqueId();long now=System.currentTimeMillis();
         int count=blocks.computeIfAbsent(id,k->new Counter()).add(now,1,60);
         int limit=Math.max(ordinaryBlocks,profile(id).blocks());
         if(count<=limit)return true;
-        if(count==limit+1){restrictedUntil.put(id,now+containSeconds*1000L);alert(player,"GUARD_BLOCK_LIMIT","Block-operation budget "+limit+" exceeded; further operations restricted for "+containSeconds+" seconds");}
+        if(count==limit+1)alert(player,"GUARD_BLOCK_LIMIT","Block-operation budget "+limit+" exceeded; further block attempts denied in this window");
         return false;
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void interact(PlayerInteractEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
@@ -136,24 +167,24 @@ final class OrionGuard implements Listener,AutoCloseable {
         if(count>=containerLimit&&count-e.getCurrentItem().getAmount()<containerLimit)alert(p,"CONTAINER_ACTIVITY","High volume of container item interaction attempts; item count is not a confirmed withdrawal");
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void move(PlayerMoveEvent e){
-        if(lockdown()&&!profile(e.getPlayer().getUniqueId()).lockdown()&&e.getTo()!=null&&(e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);
+        if(blocked(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){
         int count=joins.add(System.currentTimeMillis(),1,10);
-        if(count==joinLimit){evidence("JOIN_SPIKE",null,"Join threshold reached: "+count+" in 10 seconds; not proof of a raid","OrionGuard");if(lockSeconds>0)lockdown(System.currentTimeMillis()+lockSeconds*1000L,"join-spike policy");}
+        if(count==joinLimit)rule(null,null,"JOIN_SPIKE","Join threshold reached: "+count+" in 10 seconds; not proof of a raid","OrionGuard");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();blocks.remove(id);containers.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void spawn(CreatureSpawnEvent e){
-        if(entities.add(System.currentTimeMillis(),1,10)==entityLimit)evidence("ENTITY_SPIKE",null,"Creature-spawn threshold reached; source="+e.getSpawnReason()+"; actor unknown","OrionGuard");
+        if(entities.add(System.currentTimeMillis(),1,10)==entityLimit)rule(null,null,"ENTITY_SPIKE","Creature-spawn threshold reached; source="+e.getSpawnReason()+"; actor unknown","OrionGuard");
     }
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void explosion(EntityExplodeEvent e){
         if(e.blockList().size()<ordinaryBlocks)return;
-        String actor=null;
-        if(e.getEntity() instanceof org.bukkit.entity.TNTPrimed t&&t.getSource() instanceof Player p)actor=plugin.identities().resolve(p);
-        evidence("EXPLOSION_ACTIVITY",actor,"Explosion affected "+e.blockList().size()+" candidate blocks; world="+e.getLocation().getWorld().getName()+"; actual result not confirmed","OrionGuard");
+        String actor=null;UUID player=null;
+        if(e.getEntity() instanceof org.bukkit.entity.TNTPrimed t&&t.getSource() instanceof Player p){actor=plugin.identities().resolve(p);player=p.getUniqueId();}
+        rule(player,actor,"EXPLOSION_ACTIVITY","Explosion affected "+e.blockList().size()+" candidate blocks; world="+e.getLocation().getWorld().getName()+"; actual result not confirmed","OrionGuard");
     }
     int operationLimit(UUID player,String world){
-        if(!open||protectedWorlds.contains(world)||lockdown()&&!profile(player).lockdown()||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
+        if(!open||protectedWorlds.contains(world)||frozen(player)||containment.denied(player,GuardContainment.Type.WORLDEDIT_RESTRICTION,System.currentTimeMillis())||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
         return profile(player).editLimit();
     }
     boolean enforceEdits(){return blockEdits;}
@@ -162,5 +193,13 @@ final class OrionGuard implements Listener,AutoCloseable {
         int max=operationLimit(player,world);
         return GuardBudget.operation(used,max)&&editBudget.reserve(player,System.nanoTime(),profile(player).minuteLimit());
     }
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void teleport(PlayerTeleportEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void bucket(PlayerBucketEmptyEvent e){if(denied(e.getPlayer(),GuardContainment.Type.BUILD_RESTRICTION))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void entity(PlayerInteractEntityEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drop(PlayerDropItemEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void pickup(EntityPickupItemEvent e){if(e.getEntity() instanceof Player p&&blocked(p))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drag(InventoryDragEvent e){if(e.getWhoClicked() instanceof Player p&&blocked(p)&&!VerificationMenus.owns(e.getView().getTopInventory())&&!DashboardMenus.owns(e.getView().getTopInventory()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void chat(io.papermc.paper.event.player.AsyncChatEvent e){if(frozen(e.getPlayer().getUniqueId()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageByEntityEvent e){if(e.getDamager() instanceof Player p&&blocked(p)||e.getDamager() instanceof org.bukkit.entity.Projectile projectile&&projectile.getShooter() instanceof Player shooter&&blocked(shooter))e.setCancelled(true);}
     @Override public void close(){open=false;cleanup.cancel();HandlerList.unregisterAll(this);lastAlert.clear();}
 }

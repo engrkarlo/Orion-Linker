@@ -24,7 +24,7 @@ final class WorldEditGuard implements AutoCloseable {
             private final AtomicBoolean reported=new AtomicBoolean(),authorized=new AtomicBoolean();
             @Override public <T extends BlockStateHolder<T>> boolean setBlock(BlockVector3 location,T block)throws WorldEditException{
                 if(player==null||!guard.reserveEdit(player,world,attempted)){
-                    if(reported.compareAndSet(false,true))guard.external("WORLDEDIT_BLOCKED",player==null?null:guard.identity(player),"WorldEdit mutation blocked; world="+world+"; position="+location+"; reserved attempts="+attempted.get()+"; prior changes may already exist","WorldEdit/FAWE");
+                    if(reported.compareAndSet(false,true))guard.rule(player,player==null?null:guard.identity(player),"WORLDEDIT_BLOCKED","WorldEdit mutation blocked; world="+world+"; position="+location+"; reserved attempts="+attempted.get()+"; prior changes may already exist","WorldEdit/FAWE");
                     throw new MaxChangedBlocksException(player==null?0:guard.operationLimit(player,world));
                 }
                 if(authorized.compareAndSet(false,true))guard.external("TRUSTED_OPERATION",guard.identity(player),"Authorized WorldEdit session; world="+world+"; operation limit="+guard.operationLimit(player,world),"WorldEdit/FAWE");

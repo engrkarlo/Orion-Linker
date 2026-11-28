@@ -47,7 +47,7 @@ final class LuckPermsRoles implements AutoCloseable {
             // Renew by replacing only the exact transient node this bridge owns.
             user.transientData().remove(entry.getValue());it.remove();
         }
-        if(until<=System.currentTimeMillis())return;
+        if(until<=System.currentTimeMillis()){owned.remove(id);return;}
         for(String name:desired){
             if(!safe(name,new HashSet<>(),0))continue;
             var node=InheritanceNode.builder(name).expiry(Instant.ofEpochMilli(until)).build();

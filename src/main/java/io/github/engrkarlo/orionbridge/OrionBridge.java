@@ -232,6 +232,7 @@ public final class OrionBridge extends JavaPlugin {
         }
         if(sender instanceof Player player&&verification!=null&&verification.playerCommand(player,args))return true;
         if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob account | /ob link | /ob reload");return true;}
+        if(sender instanceof Player player&&guard!=null&&(!guard.profile(player.getUniqueId()).commands().contains("orionbridge:ob-reload"))){sender.sendMessage("A trusted profile explicitly allowing orionbridge:ob-reload is required.");return true;}
         if(!sender.hasPermission("orionbridge.reload")){sender.sendMessage("You do not have permission to reload OrionBridge.");return true;}
         try {apply(readSettings());sender.sendMessage("OrionBridge reloaded ("+session.settings.mode()+").");}
         catch(Exception e){sender.sendMessage("OrionBridge reload failed: "+safeError(e)+(session==null?". Bridge inactive.":". Previous settings restored."));}
