@@ -14,7 +14,7 @@ final class SetupRequest {
     private int attempts;
     private Pending pending;
     private Receipt receipt;
-    private record Receipt(String id,String claimHash,long expires){}
+    private record Receipt(String id,String claimHash,String tokenHash,long expires){}
     record Credentials(String guild,String server,String actor,String audit,String control,String network,String feature) {
         Credentials(String guild,String server,String actor,String audit,String control,String network){this(guild,server,actor,audit,control,network,"CREDENTIALS");}
         Credentials {
@@ -51,11 +51,12 @@ final class SetupRequest {
         var value=peek(now);
         if(value==null||!value.id().equals(id))return null;
         cancelPending();return value;
-    }    synchronized void approve(Pending value,long now){
-        if(value.claimHash()!=null&&value.expires()>now)receipt=new Receipt(value.id(),value.claimHash(),value.expires());
     }
-    synchronized boolean claim(String id,String secret,long now){
+    synchronized void approve(Pending value,String token,long now){
+        if(value.claimHash()!=null&&value.expires()>now)receipt=new Receipt(value.id(),value.claimHash(),hash(token),value.expires());
+    }
+    synchronized boolean claim(String id,String secret,String token,long now){
         if(receipt==null||now>=receipt.expires()){receipt=null;return false;}
-        return receipt.id().equals(id)&&secret!=null&&secret.matches("[a-f0-9]{64}")&&MessageDigest.isEqual(receipt.claimHash().getBytes(StandardCharsets.US_ASCII),hash(secret).getBytes(StandardCharsets.US_ASCII));
+        return receipt.id().equals(id)&&receipt.tokenHash().equals(hash(token))&&secret!=null&&secret.matches("[a-f0-9]{64}")&&MessageDigest.isEqual(receipt.claimHash().getBytes(StandardCharsets.US_ASCII),hash(secret).getBytes(StandardCharsets.US_ASCII));
     }
 }

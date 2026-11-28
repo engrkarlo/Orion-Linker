@@ -14,9 +14,9 @@ final class SetupRequestSmoke {
         code=s.open(now);s.cancel();check(s.stage(code+suffix,token,now)==null);
         code=s.open(now);String claim="9".repeat(64);
         var bootstrap=s.stage(code+suffix+"\nCREDENTIALS\n"+claim,token,now,true);
-        check(bootstrap!=null);check(!s.claim(bootstrap.id(),claim,now));
-        check(s.consume(bootstrap.id(),now)!=null);s.approve(bootstrap,now);
-        check(!s.claim(bootstrap.id(),token,now));check(s.claim(bootstrap.id(),claim,now));check(!s.claim(bootstrap.id(),claim,now+300000));
+        check(bootstrap!=null);check(!s.claim(bootstrap.id(),claim,token,now));
+        check(s.consume(bootstrap.id(),now)!=null);s.approve(bootstrap,token,now);
+        check(!s.claim(bootstrap.id(),token,token,now));check(s.claim(bootstrap.id(),claim,token,now));check(!s.claim(bootstrap.id(),claim,a,now));check(!s.claim(bootstrap.id(),claim,token,now+300000));
         System.out.println("SetupRequestSmoke passed");
     }
     static void check(boolean ok){if(!ok)throw new AssertionError();}

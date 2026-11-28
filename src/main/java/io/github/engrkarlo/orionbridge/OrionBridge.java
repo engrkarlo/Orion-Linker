@@ -397,7 +397,7 @@ public final class OrionBridge extends JavaPlugin {
                 }
                 SetupConfig.provision(getDataFolder().toPath(),c);
                 var result=reloadAll();
-                if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED)setup.approve(request,System.currentTimeMillis());
+                if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED)setup.approve(request,session.settings.token(),System.currentTimeMillis());
                 messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
             }catch(Exception e){getLogger().warning("Setup could not apply: "+(e instanceof java.io.IOException?e.getMessage():"Invalid setup settings"));messages.send(sender,"setup.failed");}
             return;

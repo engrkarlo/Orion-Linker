@@ -40,7 +40,7 @@ final class PullHttp implements AutoCloseable {
                     String secret=ex.getRequestHeaders().getFirst("Authorization");
                     if(secret==null||!secret.matches("Bearer [a-f0-9]{64}")||!"16".equals(ex.getRequestHeaders().getFirst("Content-Length"))){ex.sendResponseHeaders(403,-1);return;}
                     String id=new String(ex.getRequestBody().readNBytes(16),StandardCharsets.US_ASCII);
-                    if(!setup.claim(id,secret.substring(7),System.currentTimeMillis())){ex.sendResponseHeaders(403,-1);return;}
+                    if(!setup.claim(id,secret.substring(7),token,System.currentTimeMillis())){ex.sendResponseHeaders(403,-1);return;}
                     byte[] reply=("{\"token\":\""+token+"\"}").getBytes(StandardCharsets.UTF_8);
                     ex.sendResponseHeaders(200,reply.length);ex.getResponseBody().write(reply);
                 }finally{admission.leave();}
@@ -73,7 +73,7 @@ final class PullHttp implements AutoCloseable {
                 byte[] body=ex.getRequestBody().readNBytes(Integer.parseInt(length));
                 if(body.length!=Integer.parseInt(length)){ex.sendResponseHeaders(400,-1);return;}
                 String raw=new String(body,StandardCharsets.US_ASCII);
-                if(bootstrap&&!raw.startsWith(supplied.substring(7)+"\\n")){ex.sendResponseHeaders(403,-1);return;}
+                if(bootstrap&&!raw.startsWith(supplied.substring(7)+"\n")){ex.sendResponseHeaders(403,-1);return;}
                 var staged=setup.stage(raw,token,System.currentTimeMillis(),bootstrap);
                 if(staged==null){ex.sendResponseHeaders(403,-1);return;}
                 byte[] reply=("{\"state\":\"PENDING\",\"id\":\""+staged.id()+"\"}").getBytes(StandardCharsets.UTF_8);
@@ -81,6 +81,7 @@ final class PullHttp implements AutoCloseable {
             }finally{admission.leave();}
         }finally{ex.close();}
     }
+    int port(){return server.getAddress().getPort();}
     void publish(String json,long sentAt){
         byte[] bytes=json.getBytes(StandardCharsets.UTF_8);
         if(bytes.length<=1024*1024)latest=new Snapshot(bytes,sentAt);
