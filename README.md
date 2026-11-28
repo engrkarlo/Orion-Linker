@@ -1,6 +1,6 @@
-# OrionBridge 2.0.0-alpha.6
+# OrionBridge 2.0.0-alpha.7
 
-**Development preview — not a production security release.** Alpha.6 extends the native Pull bridge with verification batching, managed role sync, staff profiles, security observations and containment, moderation, chat, recovery previews, and Java/Bedrock administration interfaces. Test optional integrations on a disposable server before enabling enforcement. OrionBot's matching native implementation is required. See [setup and commands](docs/manual.md), [configuration](docs/configuration.md), and [acceptance tests and limitations](docs/acceptance.md).
+**Development preview — not a production security release.** Alpha.7 extends the native Pull bridge with verification batching, managed role sync, staff profiles, security observations and containment, moderation, chat, recovery previews, and Java/Bedrock administration interfaces. Alpha.7 adds configurable rule responses, repeat-case duration suggestions, separate verification scheduling, safer managed-role authorization and bounded offline Java rank reconciliation. Test optional integrations on a disposable server before enabling enforcement. OrionBot's matching native implementation is required. See [setup and commands](docs/manual.md), [configuration](docs/configuration.md), and [acceptance tests and limitations](docs/acceptance.md).
 
 Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge). OrionBot contains the native Discord companion; this repository builds the Minecraft JAR and tests the protocol.
 
@@ -132,6 +132,6 @@ From this repository root with JDK 25 and Maven 3.9+:
 mvn -B -f pom.xml clean verify
 ```
 
-Output: `target/OrionBridge-2.0.0-alpha.6.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
+Output: `target/OrionBridge-2.0.0-alpha.7.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
 
 [OrionBot host project](https://github.com/engrkarlo/OrionBot)

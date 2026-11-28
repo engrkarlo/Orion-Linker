@@ -2,7 +2,7 @@
 
 Status: proposed implementation contract; not a claim of completed features. Target: Paper 26.3, Java 25, OrionBot (Discord Components V2), Java inventory/dialog and native Bedrock forms. Repository: existing Orion-Linker repository, repurposed for OrionBridge. Preserve repository history and existing OrionBot compatibility until migration is verified.
 
-Implementation update (alpha.5): Discord functionality is built into OrionBot, not an extension. Legacy extension data migrates automatically; the rest of this document remains the target specification, not completed features.
+Implementation update (alpha.7): Discord functionality is built into OrionBot, not an extension. Legacy extension data migrates automatically; the rest of this document remains the target specification, not completed features. See the [operator manual](manual.md), [configuration reference](configuration.md) and [acceptance/remaining gaps](acceptance.md) for actual coverage. Alpha.7 adds configurable reversible rule responses and bounded offline Java rank lookup. Full third-party hook coverage, all UI/theme settings and stable release acceptance remain outstanding.
 
 ## Goals and boundaries
 - Mandatory one-to-one Minecraft/Discord verification after administrator setup; Java online identities and authenticated Floodgate XUIDs; offline Java only after supported authentication succeeds. No passwords or Microsoft credentials collected.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-alpha.7 (development preview)
+- Config v10 preserves existing settings while adding independent rule response, severity, duration and cooldown settings.
+- Local reversible containment covers guarded commands, building, edit budgets, movement, interactions and chat; overlapping restrictions expire independently. Rejoining does not reset the ordinary block budget.
+- Read-only, bounded offline LuckPerms rank lookup for previously observed authenticated Java UUIDs.
+- Matching OrionBot branch separates verification and delivery polling, isolates failed account challenges, rejects managed staff-role conflicts across guild servers and adds repeat-case duration suggestions.
+- Player-triggered telemetry reload under Guard requires an explicit trusted profile command grant. Console recovery remains available.
+- Development preview: follow acceptance checklist; live integration and remaining limitations are not certified.
+
 ## 2.0.0-alpha.6 (development preview)
 - Config v9 migration preserves existing settings and credentials; new enforcement modules opt in.
 - Bounded verification batches, shared identity resolution, mutable event counters, incremental sanction indexing and task timings.

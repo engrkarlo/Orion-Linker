@@ -1,6 +1,6 @@
-# Development history — through alpha.6
+# Development history — through alpha.7
 
-Alpha.6 extends the original foundation. The earlier entries below are historical and do not describe the current feature set. Refer to [the manual](manual.md), [configuration](configuration.md) and [remaining acceptance gates](acceptance.md).
+Alpha.7 extends the original foundation with independent rule responses, safer role authorization, bounded offline Java rank reconciliation and separate verification polling. The earlier entries below are historical and do not describe the current feature set. Refer to [the manual](manual.md), [configuration](configuration.md) and [remaining acceptance gates](acceptance.md).
 
 The sections below describe successive implementation stages. Alpha.4 includes the experimental host extension; earlier statements about missing host wiring describe earlier stages.
 

@@ -1,4 +1,4 @@
-# Configuration reference — v9
+# Configuration reference — v10
 
 The bundled config.yml is the authoritative list of keys. Missing fields migrate with existing values preserved. Restart Paper after changing anything except telemetry connection settings. Keep backups private; they may contain credentials.
 
@@ -22,3 +22,23 @@ Retain config.yml, the entire audit and sanctions directories, and menu files. B
 
 ## Guard deployment
 Start with enforcement disabled. Test with a linked administrator and ordinary player; allow only exact necessary commands. Protected worlds are hard-deny for guarded edits. Edit limits are attempted changes, not a guarantee of successful block counts. Non-player edits and alternate plugin/API paths need separate review. Lockdown is not a substitute for backups or server permissions.
+
+## Rule responses (config v10)
+
+For each of GUARD_COMMAND_BLOCKED, WORLDEDIT_BLOCKED, GUARD_BLOCK_LIMIT, CONTAINER_ACTIVITY, JOIN_SPIKE, ENTITY_SPIKE and EXPLOSION_ACTIVITY, set guard.rules.<KIND>.enabled, severity (LOW/MEDIUM/HIGH/CRITICAL), response, duration-seconds (5–3600) and cooldown-seconds (1–3600). Responses: ALERT, BUILD_RESTRICTION, WORLDEDIT_RESTRICTION, COMMAND_RESTRICTION, FREEZE, QUARANTINE; LOCKDOWN only for JOIN_SPIKE. Unattributed entity events are alert-only. Unknown actors are never assigned individual containment. Rule switches control additional response and evidence, not the independent hard command/edit/block budgets. Defaults: suspicious commands/edits and observational rules alert; block-budget violation quarantines; JOIN_SPIKE inherits the existing join-lockdown-seconds setting (0 = alert only). Omitted durations inherit containment-seconds or join-lockdown-seconds. These short local restrictions are session-process state, not durable moderation cases, and a restart clears them. Use a centrally approved durable case for persistence.
+
+Example:
+```yaml
+guard:
+  rules:
+    WORLDEDIT_BLOCKED:
+      enabled: true
+      severity: CRITICAL
+      response: WORLDEDIT_RESTRICTION
+      duration-seconds: 900
+      cooldown-seconds: 30
+```
+
+When Guard is enabled, in-game /ob reload requires the orionbridge.reload permission and a verified profile explicitly listing orionbridge:ob-reload. Console reload is unaffected. All other security configuration changes need a full restart.
+
+roles.offline-reconciliation (default true when roles.enabled is true) enables signed POST /v2/ranks. The plugin accepts at most four canonical Java UUIDs per request and at most four storage loads concurrently, waits at most two seconds, returns only available primary groups, and does not grant any permissions. The matching bot queries previously verified matching Java UUIDs, not arbitrary usernames. Bedrock/AuthMe rank changes reconcile on authenticated login; do not infer offline identity from names.

@@ -81,6 +81,8 @@ final class OrionGuard implements Listener,AutoCloseable {
         cleanup=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{
             long now=System.currentTimeMillis();
             containment.prune(now);
+            blocks.entrySet().removeIf(e->now-e.getValue().start>=60000);
+            containers.entrySet().removeIf(e->now-e.getValue().start>=60000);
             lastAlert.entrySet().removeIf(e->e.getValue()<now-3600000);
             editBudget.prune(System.nanoTime());
         },200L,200L);
@@ -118,7 +120,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     private void alert(Player p,String kind,String detail){
         if(rules.containsKey(kind))rule(p.getUniqueId(),plugin.identities().resolve(p),kind,"Player "+p.getName()+"; "+detail,"OrionGuard");
         else{
-            long now=System.currentTimeMillis();var key=new AlertKey(p.getUniqueId(),kind);Long prior=lastAlert.putIfAbsent(key,now);
+            long now=System.currentTimeMillis();var key=new AlertKey(p.getUniqueId(),kind);if(lastAlert.size()>=20000&&!lastAlert.containsKey(key))return;Long prior=lastAlert.putIfAbsent(key,now);
             if(prior==null||now-prior>=5000&&lastAlert.replace(key,prior,now))evidence(kind,plugin.identities().resolve(p),"Player "+p.getName()+"; "+detail,"OrionGuard");
         }
     }
@@ -152,6 +154,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     private boolean block(Player player){
         if(denied(player,GuardContainment.Type.BUILD_RESTRICTION))return false;
         UUID id=player.getUniqueId();long now=System.currentTimeMillis();
+        if(!blocks.containsKey(id)&&blocks.size()>=10000)return false;
         int count=blocks.computeIfAbsent(id,k->new Counter()).add(now,1,60);
         int limit=Math.max(ordinaryBlocks,profile(id).blocks());
         if(count<=limit)return true;
@@ -163,6 +166,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         if(!(e.getWhoClicked() instanceof Player p)||VerificationMenus.owns(e.getView().getTopInventory())||DashboardMenus.owns(e.getView().getTopInventory()))return;
         if(blocked(p)){e.setCancelled(true);return;}
         if(e.getRawSlot()<0||e.getRawSlot()>=e.getView().getTopInventory().getSize()||e.getCurrentItem()==null)return;
+        if(!containers.containsKey(p.getUniqueId())&&containers.size()>=10000)return;
         int count=containers.computeIfAbsent(p.getUniqueId(),k->new Counter()).add(System.currentTimeMillis(),e.getCurrentItem().getAmount(),60);
         if(count>=containerLimit&&count-e.getCurrentItem().getAmount()<containerLimit)alert(p,"CONTAINER_ACTIVITY","High volume of container item interaction attempts; item count is not a confirmed withdrawal");
     }
@@ -173,7 +177,6 @@ final class OrionGuard implements Listener,AutoCloseable {
         int count=joins.add(System.currentTimeMillis(),1,10);
         if(count==joinLimit)rule(null,null,"JOIN_SPIKE","Join threshold reached: "+count+" in 10 seconds; not proof of a raid","OrionGuard");
     }
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();blocks.remove(id);containers.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void spawn(CreatureSpawnEvent e){
         if(entities.add(System.currentTimeMillis(),1,10)==entityLimit)rule(null,null,"ENTITY_SPIKE","Creature-spawn threshold reached; source="+e.getSpawnReason()+"; actor unknown","OrionGuard");
     }
