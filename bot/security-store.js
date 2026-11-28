@@ -63,12 +63,16 @@ function createSecurityStore({file,secret,now=Date.now}){
     server(g,s);discord(d)
     if(typeof code!=='string'||! /^[a-f0-9]{32}$/.test(code))throw Error('Invalid code')
     return tx(()=>{
-      const row=get('SELECT identity,discord,expires FROM challenges WHERE guild=? AND server=? AND code_hash=?',g,s,hash(g,s,code))
-      if(!row||row.expires<=now()||row.discord)throw Error('Invalid or already claimed code')
+      const row=get('SELECT identity,session,discord,expires FROM challenges WHERE guild=? AND server=? AND code_hash=?',g,s,hash(g,s,code))
+      if(!row||row.expires<=now()||(row.discord&&row.discord!==d))throw Error('Invalid or already claimed code')
       if(get('SELECT 1 FROM links WHERE guild=? AND discord=?',g,d))throw Error('Discord account already linked')
       run('UPDATE challenges SET discord=? WHERE guild=? AND identity=?',d,g,row.identity)
-      return {identity:row.identity,discord:d}
+      return {identity:row.identity,discord:d,session:row.session,expires:row.expires}
     })
+  }
+  function pendingClaim(g,s,i,session){
+    server(g,s);identity(i);text(session,100)
+    return get('SELECT discord,expires FROM challenges WHERE guild=? AND server=? AND identity=? AND session=? AND expires>? AND discord IS NOT NULL',g,s,i,session,now())||null
   }
   function confirm(g,s,i,session,d){
     server(g,s);identity(i);discord(d);text(session,100)
@@ -164,6 +168,6 @@ function createSecurityStore({file,secret,now=Date.now}){
     return {matches:row.matches,commonOwnershipConfirmed:false}
   }
   function prune(){run('DELETE FROM challenges WHERE expires<=?',now());run('DELETE FROM networks WHERE last_seen<?',now()-90*86400000)}
-  return {register,linked,issue,claim,confirm,createCase,getCase,approve,revoke,pending,acknowledge,expire,recordEvent,events,observeNetwork,compare,prune,close:()=>db.close()}
+  return {register,linked,issue,claim,pendingClaim,confirm,createCase,getCase,approve,revoke,pending,acknowledge,expire,recordEvent,events,observeNetwork,compare,prune,close:()=>db.close()}
 }
 module.exports={createSecurityStore,duration,identity}
