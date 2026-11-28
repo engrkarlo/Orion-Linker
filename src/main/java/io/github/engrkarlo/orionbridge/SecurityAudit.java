@@ -28,7 +28,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
     private static final class Window {long started;int count;boolean alerted;Window(long started){this.started=started;}}
     SecurityAudit(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
         this.plugin=plugin;identities=plugin.identities();String guild=cfg.getString("audit.guild-id",""),server=cfg.getString("audit.server-id",""),key=cfg.getString("audit.signing-key","");
-        AuditAuth auth=new AuditAuth(guild,server,key);
+        AuditAuth auth=plugin.auditAuthorization(guild,server,key);
         networks=cfg.getBoolean("correlation.enabled",false)&&cfg.getBoolean("correlation.confirm-real-client-addresses",false)?new NetworkFingerprint(guild,cfg.getString("correlation.guild-key","")):null;
         hideVanished=cfg.getBoolean("hide-vanished",true);respectListing=cfg.getBoolean("respect-listing-preference",true);
         threshold=Math.max(10,Math.min(100000,cfg.getInt("audit.block-changes-per-minute",500)));

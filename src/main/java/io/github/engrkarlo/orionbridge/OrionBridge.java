@@ -44,6 +44,9 @@ public final class OrionBridge extends JavaPlugin {
     private CoreProtectRecovery recovery;
     private DashboardMenus dashboards;
     private final BridgeMetrics metrics=new BridgeMetrics();
+    // Keep nonce history across reload/rollback and key rotations for the full replay window.
+    private final AuditAuth.NonceLedger auditNonces=new AuditAuth.NonceLedger(4096),controlNonces=new AuditAuth.NonceLedger(4096);
+    AuditAuth auditAuthorization(String guild,String server,String key){return new AuditAuth(guild,server,key,auditNonces);}
     BridgeMetrics metrics(){return metrics;}
     CoreProtectRecovery recovery(){return recovery;}
     LocalModeration moderation(){return moderation;}
@@ -125,7 +128,7 @@ public final class OrionBridge extends JavaPlugin {
                 try{
                     String key=cfg.getString("control.signing-key","");
                     if(key.equals(settings.token())||key.equals(cfg.getString("audit.signing-key","")))throw new IllegalArgumentException("Control key must be distinct");
-                    AuditAuth auth=new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),key);
+                    AuditAuth auth=new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),key,controlNonces);
                     // Scope is shared with the audit feed, signing credentials are not.
                     moderation=new LocalModeration(this,cfg);control=new ControlEndpoint(auth,moderation,verification,this);
                 }catch(Exception e){if(strict)throw e;getLogger().severe("Moderation control unavailable; check configuration and sanction storage. No remote enforcement is available.");}

@@ -4,7 +4,15 @@ import java.util.UUID;
 
 public final class ReloadSafetySmoke {
     private static void check(boolean condition){if(!condition)throw new AssertionError();}
+    private static void replayAcrossReload(){
+        var ledger=new AuditAuth.NonceLedger(4096);
+        String guild="1".repeat(18),server="a".repeat(16),key="b".repeat(64),nonce="c".repeat(32),time="100000";
+        byte[] payload=new byte[0];String sig=AuditAuth.signature(java.util.HexFormat.of().parseHex(key),"GET","/v2/health",guild,server,time,nonce,payload);
+        check(new AuditAuth(guild,server,key,ledger).verify("GET","/v2/health",guild,server,time,nonce,sig,payload,100000));
+        check(!new AuditAuth(guild,server,key,ledger).verify("GET","/v2/health",guild,server,time,nonce,sig,payload,100001));
+    }
     public static void main(String[] args){
+        replayAcrossReload();
         var admission=new RequestAdmission();check(admission.enter());check(!admission.quiesce());admission.leave();
         check(admission.quiesce());check(!admission.enter());admission.resume();check(admission.enter());admission.leave();
         long now=1000000;UUID player=UUID.randomUUID(),linked=UUID.randomUUID();
