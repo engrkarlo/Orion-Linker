@@ -17,6 +17,10 @@ Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid pub
 6. Enable chat locally and in the bot, with a private staff channel for staff chat. Confirm Message Content intent and channel access. Never route private staff chat to a public channel.
 7. CoreProtect recovery: enable lookup first. Execution is separately opt-in, requires lockdown, an offline target, a fresh unchanged preview, and independent Discord approval. Test on a copy of the world. A submitted rollback is not proof of restoration.
 
+## AuthMe and reconnect behavior
+
+AuthMe authentication comes first for offline Java identities. OrionBridge does not open verification menus while the identity is unauthenticated. Gameplay stays restricted until both authentication and Discord linking succeed. During a normal client disconnect the bounded in-memory cache retains the challenge for the original five-minute lifetime, not the authorization lease or confirmation. Rejoin the same server using the same authenticated identity/UUID; the bot delivers the current Discord claimant again. Confirm in the new session. A Minecraft process restart clears this cache; a new challenge may be required. AuthMe teleport-to-spawn/restore-location behavior must be tested with the mandatory teleport restriction; no generic plugin teleport bypass is granted.
+
 ## Minecraft commands and permissions
 
 | Command | Access / behavior |

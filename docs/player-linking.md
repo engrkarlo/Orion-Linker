@@ -6,7 +6,7 @@
 2. Run `/ob link`. You can also open `/ob account` and use the verification option. Java uses a dialog or inventory; Floodgate Bedrock uses a form when available.
 3. Copy the private temporary code. In the community's Discord server, find the verification panel and click **Link Account**. Submit the code.
 4. Return to Minecraft. Check the Discord identity shown and confirm only if it is yours. A successful link belongs to this Discord guild.
-5. Use `/ob account` or **My Account** on Discord to check the result. If a code expires or you disconnect, request a fresh one.
+5. Use `/ob account` or **My Account** on Discord to check the result. If your phone crashes or you disconnect, you can submit the existing code in Discord, rejoin the same Minecraft server, authenticate again if needed, and confirm the account before the original five-minute deadline. A reconnect does not regenerate or extend a code. If the code expires or you deliberately regenerate it, use the new code. A Minecraft process restart may clear the local challenge; keep the bot and plugin running during linking.
 
 Never share the code with another player. Do not enter your Microsoft password or Discord token. One Minecraft identity and one Discord account may be linked per guild. If you linked the wrong account or need to switch accounts, contact staff for the approved recovery process. Do not bypass the verification gate.
 

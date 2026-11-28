@@ -10,13 +10,34 @@ final class VerificationState {
         boolean hasCode(long now){return code!=null&&codeUntil>now;}
     }
     private final Map<UUID,Session> sessions=new ConcurrentHashMap<>();
-    Session join(UUID player,String identity){
+    private static final int MAX_DETACHED=4096;
+    // Only the challenge survives a client disconnect. Never carry over a lease,
+    // trusted profile, confirmation click or online session identifier.
+    private final LinkedHashMap<UUID,Session> detached=new LinkedHashMap<>();
+    private boolean resumable(Session s,long now){
+        return s!=null&&s.identity()!=null&&s.request()!=null&&
+            (s.code()!=null?s.codeUntil()>now:s.requestedAt()>0&&now-s.requestedAt()<300000);
+    }
+    void pruneDetached(long now){detached.values().removeIf(s->!resumable(s,now));}
+    Session join(UUID player,String identity){return join(player,identity,System.currentTimeMillis());}
+    Session join(UUID player,String identity,long now){
         Session s=new Session(player,UUID.randomUUID(),identity,null,null,0,null,null,false,null,0,0,0);
+        if(identity!=null){
+            Session old=detached.remove(player);
+            if(resumable(old,now)&&identity.equals(old.identity()))
+                s=new Session(player,s.session(),identity,old.request(),old.code(),old.codeUntil(),null,null,false,null,0,0,old.requestedAt());
+        }
         sessions.put(player,s);return s;
     }
     Session get(UUID player){return sessions.get(player);}
-    void quit(UUID player){sessions.remove(player);}
-    void clear(){sessions.clear();}
+    void quit(UUID player){quit(player,System.currentTimeMillis());}
+    void quit(UUID player,long now){
+        Session s=sessions.remove(player);
+        if(!resumable(s,now))return;
+        if(detached.size()>=MAX_DETACHED){pruneDetached(now);if(detached.size()>=MAX_DETACHED)detached.remove(detached.keySet().iterator().next());}
+        detached.put(player,s);
+    }
+    void clear(){sessions.clear();detached.clear();}
     List<Session> snapshot(){return List.copyOf(sessions.values());}
     boolean restricted(UUID player,long now){Session s=get(player);return s==null||!s.verified(now);}
     Session request(UUID player,long now){

@@ -21,5 +21,23 @@ public final class VerificationSmoke {
         state.quit(player);state.join(player,identity);
         check(state.lease(player,session.session(),identity,discord,now+2,now+60002,now+2,60000).equals("STALE"));
         check(state.restricted(player,now+2));
+        var first=state.join(player,identity,now);var req=state.request(player,now);
+        check(state.offer(player,first.session(),identity,req.request(),"c".repeat(32),now+300000,now).equals("APPLIED"));
+        check(state.claim(player,first.session(),identity,req.request(),discord,"Example",now).equals("APPLIED"));
+        check(state.confirm(player,req.request(),discord,now));
+        state.quit(player,now+1000);
+        var authPending=state.join(player,null,now+2000);check(authPending.request()==null);
+        var resumed=state.join(player,identity,now+3000);
+        check(!resumed.session().equals(first.session()));check(resumed.request().equals(req.request()));
+        check(resumed.code().equals("c".repeat(32)));check(resumed.codeUntil()==now+300000);
+        check(!resumed.confirmed()&&resumed.claimant()==null&&state.restricted(player,now+3000));
+        check(state.claim(player,first.session(),identity,req.request(),discord,"Example",now+3000).equals("STALE"));
+        check(state.claim(player,resumed.session(),identity,req.request(),discord,"Example",now+3000).equals("APPLIED"));
+        check(state.confirm(player,req.request(),discord,now+3000));
+        state.quit(player,now+4000);
+        check(state.join(player,identity,now+300000).request()==null);
+        var pending=state.request(player,now+300001);state.quit(player,now+300002);
+        check(state.join(player,"java:"+"b".repeat(32),now+300003).request()==null);
+        check(state.join(player,identity,now+300004).request()==null);
     }
 }

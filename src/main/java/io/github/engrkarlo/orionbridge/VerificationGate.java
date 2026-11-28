@@ -51,19 +51,37 @@ final class VerificationGate implements Listener,AutoCloseable {
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
         refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->plugin.metrics().measure("verification",this::sample),20L,20L);
     }
-    private boolean restricted(Player p){return active&&state.restricted(p.getUniqueId(),System.currentTimeMillis());}
+    private boolean restricted(Player p){
+        if(!active)return false;
+        var s=state.get(p.getUniqueId());
+        if(s==null||!s.verified(System.currentTimeMillis()))return true;
+        // AuthMe logout/re-authentication cannot use the previous lease between samples.
+        return org.bukkit.Bukkit.isPrimaryThread()&&!Objects.equals(s.identity(),identities.resolve(p));
+    }
     private boolean same(Player p,VerificationState.Session old){
         var current=state.get(p.getUniqueId());
-        return active&&p.isOnline()&&current!=null&&current.session().equals(old.session())&&Objects.equals(current.request(),old.request())&&Objects.equals(current.claimant(),old.claimant());
+        return active&&p.isOnline()&&current!=null&&Objects.equals(current.identity(),identities.fresh(p))&&current.session().equals(old.session())&&Objects.equals(current.request(),old.request())&&Objects.equals(current.claimant(),old.claimant());
     }
     private void show(Player p){
         if(!active||!p.isOnline())return;
         var s=state.expireChallenge(p.getUniqueId(),System.currentTimeMillis());if(s==null)return;
-        lastShown.put(p.getUniqueId(),System.currentTimeMillis());
+        long now=System.currentTimeMillis();
+        // Do not open a modal/inventory over AuthMe's login flow.
+        if(s.identity()==null){
+            if(!lastShown.containsKey(p.getUniqueId()))p.sendMessage(Component.text("Authenticate with the server first. OrionBridge verification follows; gameplay remains restricted."));
+            lastShown.put(p.getUniqueId(),now);return;
+        }
+        lastShown.put(p.getUniqueId(),now);
         menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis()))show(p);},()->{if(same(p,s))p.closeInventory();});
     }
     boolean playerCommand(Player p,String[] args){
         if(!active)return false;
+        UUID id=p.getUniqueId();String identity=identities.fresh(p);
+        var current=state.get(id);
+        if(current==null||!Objects.equals(current.identity(),identity)){
+            trusted.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);
+            state.join(id,identity);lastShown.remove(id);
+        }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){
             var s=state.get(p.getUniqueId());if(s!=null&&s.request()==null)state.request(p.getUniqueId(),System.currentTimeMillis());
@@ -159,10 +177,11 @@ final class VerificationGate implements Listener,AutoCloseable {
     }
     private void sample(){
         long now=System.currentTimeMillis();
+        state.pruneDetached(now);
         for(Player p:plugin.getServer().getOnlinePlayers()){
             UUID id=p.getUniqueId();String identity=identities.resolve(p);var s=state.get(id);
             if(plugin.roles()!=null)primaryGroups.put(id,plugin.roles().primary(id));
-            if(s==null||!Objects.equals(s.identity(),identity)){trusted.remove(id);s=state.join(id,identity);show(p);}
+            if(s==null||!Objects.equals(s.identity(),identity)){trusted.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);s=state.join(id,identity,now);lastShown.remove(id);show(p);}
             s=state.expireChallenge(id,now);
             boolean verified=s.verified(now),before=Boolean.TRUE.equals(wasVerified.put(id,verified));
             if(!verified&&(before||reopenSeconds>0&&now-lastShown.getOrDefault(id,0L)>=reopenSeconds*1000L))show(p);
