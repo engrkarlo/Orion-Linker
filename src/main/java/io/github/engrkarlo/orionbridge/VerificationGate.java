@@ -29,15 +29,24 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final Map<UUID,Long> lastShown=new HashMap<>();
     private final Map<UUID,Boolean> wasVerified=new HashMap<>();
     private volatile boolean active=true;
+    private volatile CachedSnapshot cachedSnapshot;
+    private record CachedSnapshot(long created,String json){}
     private record Trust(String profile,long until,TaskScope task){}
-    TaskScope task(UUID player){var t=trusted.get(player);return profile(player)!=null&&t!=null?t.task():null;}
+    record EditAuthorization(UUID session,String identity,String profile,TaskScope task){}
+    TaskScope task(UUID player){var a=editAuthorization(player);return a==null?null:a.task();}
     private final java.util.concurrent.ConcurrentMap<UUID,Trust> trusted=new ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentMap<UUID,String> primaryGroups=new ConcurrentHashMap<>();
-    String profile(UUID player){
-        var s=state.get(player);
-        var t=trusted.get(player);long now=System.currentTimeMillis();
-        return linkedIdentity(player)!=null&&t!=null&&t.until()>now?t.profile():null;
+    EditAuthorization editAuthorization(UUID player){
+        var s=state.get(player);var t=trusted.get(player);long now=System.currentTimeMillis();
+        if(!active||s==null||t==null||t.until()<=now||!s.verified(now))return null;
+        if(org.bukkit.Bukkit.isPrimaryThread()){
+            Player p=plugin.getServer().getPlayer(player);
+            if(p==null||!Objects.equals(s.identity(),identities.resolve(p)))return null;
+        }
+        if(state.get(player)!=s||trusted.get(player)!=t)return null;
+        return new EditAuthorization(s.session(),s.identity(),t.profile(),t.task());
     }
+    String profile(UUID player){var a=editAuthorization(player);return a==null?null:a.profile();}
     String linkedIdentity(UUID player){
         var s=state.get(player);
         if(!active||s==null||!s.verified(System.currentTimeMillis()))return null;
@@ -114,12 +123,14 @@ final class VerificationGate implements Listener,AutoCloseable {
     }
     String snapshot(){
         if(!active)return "{\"protocol\":2,\"sessions\":[]}";
+        long nanos=System.nanoTime();var cached=cachedSnapshot;if(cached!=null&&nanos-cached.created()<250_000_000L)return cached.json();
         List<String> rows=new ArrayList<>();long now=System.currentTimeMillis();
         for(var s:state.snapshot()){
             if(s.identity()==null||rows.size()>=2000)continue;
             rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"regenerate\":"+s.regenerate()+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+",\"primaryGroup\":"+q(primaryGroups.getOrDefault(s.player(),""))+"}");
         }
-        return "{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"taskScopes\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
+        String json="{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"taskScopes\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
+        cachedSnapshot=new CachedSnapshot(nanos,json);return json;
     }
     private static String q(String v){return OrionBridge.quote(v);}
     String action(String body){
@@ -190,6 +201,7 @@ final class VerificationGate implements Listener,AutoCloseable {
             default->{return "INVALID";}
         }
         if(result.equals("APPLIED")){
+            cachedSnapshot=null;
             boolean verified=state.get(player).verified(now);
             if(!verified||!Boolean.TRUE.equals(wasVerified.get(player)))show(p);
             wasVerified.put(player,verified);
@@ -197,6 +209,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         return result;
     }
     private void sample(){
+        cachedSnapshot=null;
         long now=System.currentTimeMillis();
         state.pruneDetached(now);
         for(Player p:plugin.getServer().getOnlinePlayers()){
@@ -218,8 +231,8 @@ final class VerificationGate implements Listener,AutoCloseable {
         var s=state.get(p.getUniqueId());
         return resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
-    @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
+    @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));cachedSnapshot=null;plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);cachedSnapshot=null;lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e){if(restricted(e.getPlayer()))plugin.getServer().getScheduler().runTask(plugin,()->show(e.getPlayer()));}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(restricted(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);

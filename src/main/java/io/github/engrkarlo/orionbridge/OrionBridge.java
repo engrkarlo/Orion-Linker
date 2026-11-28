@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 
 /** Read-only snapshots; all Bukkit player access is on the server thread. */
 public final class OrionBridge extends JavaPlugin {
+    private static final Pattern MOTD_COLORS=Pattern.compile("(?i)§[0-9a-fk-orx]");
     private static final Pattern TEXTURE = Pattern.compile("/texture/([a-fA-F0-9]{32,64})");
     private static final int MAX_PLAYERS = 2000;
     private BukkitTask task;
@@ -326,7 +327,7 @@ public final class OrionBridge extends JavaPlugin {
                 var cached = getServer().getServerIcon();
                 if (cached != null && cached.getData() != null && cached.getData().length() <= 350000) icon = cached.getData();
             } catch (RuntimeException ignored) {}
-            Snapshot snapshot = new Snapshot(System.currentTimeMillis(), count, getServer().getMaxPlayers(), getServer().getMinecraftVersion(), getServer().getMotd().replaceAll("(?i)§[0-9a-fk-orx]", ""),
+            Snapshot snapshot = new Snapshot(System.currentTimeMillis(), count, getServer().getMaxPlayers(), getServer().getMinecraftVersion(), MOTD_COLORS.matcher(getServer().getMotd()).replaceAll(""),
                 getServer().getTPS()[0], getServer().getAverageTickTime(), runtime.totalMemory()-runtime.freeMemory(), runtime.maxMemory(), icon, List.copyOf(people));
             current.worker.execute(() -> transmit(current,snapshot));
         } catch (RuntimeException e) {
@@ -388,7 +389,7 @@ public final class OrionBridge extends JavaPlugin {
             switch(c) {
                 case '"' -> s.append("\\\"");
                 case '\\' -> s.append("\\\\");
-                default -> { if(c<32) s.append(String.format("\\u%04x",(int)c)); else s.append(c); }
+                default -> { if(c<32) s.append("\\u00").append(Character.forDigit(c>>4,16)).append(Character.forDigit(c&15,16)); else s.append(c); }
             }
         }
         return s.append('"').toString();

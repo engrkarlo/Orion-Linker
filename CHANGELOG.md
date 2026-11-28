@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Final source inspection: restore missing immutable edit authorization type, reduce redundant LuckPerms transient node replacements, move bounded storage pruning off the main thread, optimize replay nonce expiry and enlarge the bounded verification batch payload. Large task quotas reserve up to 1024 attempts per durable write.
 - Redesign the colored startup diagnostics, distinguish local readiness from remote connection, and expose requested-but-unavailable integrations.
 - Expand Minecraft dashboard themes, enforce explicit task command allowlists, and recognize sensitive resolved commands for common administration plugins.
 - Recheck signed offline rank mappings against current verification sessions before returning ranks.

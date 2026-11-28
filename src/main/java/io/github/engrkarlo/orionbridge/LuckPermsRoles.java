@@ -152,17 +152,23 @@ final class LuckPermsRoles implements AutoCloseable {
     }
     void sync(Player player,Set<String> desired,long until){
         UUID id=player.getUniqueId();User user=api.getUserManager().getUser(id);if(user==null)return;
+        long now=System.currentTimeMillis();
         var active=owned.computeIfAbsent(id,k->new HashMap<>());
+        // Validate group inheritance each renewal, but avoid replacing unchanged
+        // transient nodes while sufficient authorized lifetime remains.
+        Set<String> safeDesired=new HashSet<>();
+        if(until>now)for(String name:desired)if(safe(name,new HashSet<>(),0))safeDesired.add(name);
         for(var it=active.entrySet().iterator();it.hasNext();){
-            var entry=it.next();
-            // Renew by replacing only the exact transient node this bridge owns.
-            user.transientData().remove(entry.getValue());it.remove();
+            var entry=it.next();var node=entry.getValue();
+            boolean stillOwned=user.transientData().toCollection().contains(node);
+            long expiry=node.getExpiry()==null?0:node.getExpiry().toEpochMilli();
+            if(stillOwned&&safeDesired.contains(entry.getKey())&&expiry<=until&&expiry-now>=Math.min(20000L,Math.max(1000L,(until-now)/2)))continue;
+            if(stillOwned)user.transientData().remove(node);
+            it.remove();
         }
-        if(until<=System.currentTimeMillis()){owned.remove(id);return;}
-        for(String name:desired){
-            if(!safe(name,new HashSet<>(),0))continue;
+        for(String name:safeDesired){
+            if(active.containsKey(name))continue;
             var node=InheritanceNode.builder(name).expiry(Instant.ofEpochMilli(until)).build();
-            // Do not take ownership of any existing transient/persistent membership.
             boolean existing=user.getNodes().stream().anyMatch(n->n instanceof InheritanceNode i&&i.getGroupName().equals(name)&&i.getValue()&&!i.hasExpired());
             if(!existing&&user.transientData().add(node).wasSuccessful())active.put(name,node);
         }

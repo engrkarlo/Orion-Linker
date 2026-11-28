@@ -39,7 +39,8 @@ final class OrionGuard implements Listener,AutoCloseable {
     private static final UUID NON_PLAYER=new UUID(0L,0L);
     private final boolean allowNonPlayerEdits,blockCommands,blockEdits,strictCommands;
     private final Set<String> ordinaryCommands;
-    private final org.bukkit.scheduler.BukkitTask cleanup;
+    private final org.bukkit.scheduler.BukkitTask cleanup,storageCleanup;
+    private final java.util.concurrent.atomic.AtomicBoolean pruning=new java.util.concurrent.atomic.AtomicBoolean();
     private volatile boolean open=true,worldEditReady=false;
     private static final class Counter {
         long start;int count;
@@ -98,13 +99,15 @@ final class OrionGuard implements Listener,AutoCloseable {
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
         cleanup=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{
             long now=System.currentTimeMillis();
-            containment.prune(now);
-            taskBudget.prune(now);
             blocks.entrySet().removeIf(e->now-e.getValue().start>=60000);
             containers.entrySet().removeIf(e->now-e.getValue().start>=60000);
             lastAlert.entrySet().removeIf(e->e.getValue()<now-3600000);
             editBudget.prune(System.nanoTime());
         },200L,200L);
+        storageCleanup=plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin,()->{
+            if(!open||!pruning.compareAndSet(false,true))return;
+            try{long now=System.currentTimeMillis();containment.prune(now);taskBudget.prune(now);}finally{pruning.set(false);}
+        },1200L,1200L);
     }
     private static EditScope readScope(YamlConfiguration cfg,String base){
         for(String k:List.of("worlds","commands","operations","regions"))if(cfg.contains(base+k)&&!cfg.isList(base+k))throw new IllegalArgumentException("Invalid task scope list: "+k);
@@ -289,5 +292,5 @@ final class OrionGuard implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drag(InventoryDragEvent e){if(e.getWhoClicked() instanceof Player p&&blocked(p)&&!VerificationMenus.owns(e.getView().getTopInventory())&&!DashboardMenus.owns(e.getView().getTopInventory()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void chat(io.papermc.paper.event.player.AsyncChatEvent e){if(frozen(e.getPlayer().getUniqueId()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageByEntityEvent e){if(e.getDamager() instanceof Player p&&blocked(p)||e.getDamager() instanceof org.bukkit.entity.Projectile projectile&&projectile.getShooter() instanceof Player shooter&&blocked(shooter))e.setCancelled(true);}
-    @Override public void close(){open=false;cleanup.cancel();HandlerList.unregisterAll(this);lastAlert.clear();}
+    @Override public void close(){open=false;cleanup.cancel();storageCleanup.cancel();HandlerList.unregisterAll(this);lastAlert.clear();}
 }

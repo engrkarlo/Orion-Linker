@@ -37,7 +37,8 @@ final class TaskBudget {
             }
             if(!b.subject().equals(subject)||!b.task().equals(task))return false;
             if(b.available()==0){
-                int n=Math.min(CHUNK,task.budget()-b.debited());if(n<=0)return false;
+                int chunk=Math.min(1024,Math.max(CHUNK,task.budget()/64));
+                int n=Math.min(chunk,task.budget()-b.debited());if(n<=0)return false;
                 int debit=b.debited()+n;Path tmp=Files.createTempFile(dir,"quota-",".tmp");
                 try{
                     Files.writeString(tmp,metadata(subject,task)+debit,StandardCharsets.UTF_8);

@@ -21,7 +21,7 @@ final class ControlEndpoint {
         if(!method.equals("POST")&&!((linking&&!batch||policy||chat||health)&&method.equals("GET"))){ex.sendResponseHeaders(405,-1);return;}
         var h=ex.getRequestHeaders();String g=h.getFirst("X-Orion-Guild"),s=h.getFirst("X-Orion-Server");
         if(!auth.scope(g,s)){ex.sendResponseHeaders(401,-1);return;}
-        int limit=batch?16384:4096;
+        int limit=batch?65536:4096;
         byte[] body=ex.getRequestBody().readNBytes(limit+1);
         if(body.length>limit){ex.sendResponseHeaders(413,-1);return;}
         if(!auth.verify(method,path,g,s,h.getFirst("X-Orion-Time"),h.getFirst("X-Orion-Nonce"),h.getFirst("X-Orion-Signature"),body,System.currentTimeMillis())){ex.sendResponseHeaders(401,-1);return;}
