@@ -28,7 +28,8 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final Map<UUID,Long> lastShown=new HashMap<>();
     private final Map<UUID,Boolean> wasVerified=new HashMap<>();
     private volatile boolean active=true;
-    private record Trust(String profile,long until){}
+    private record Trust(String profile,long until,TaskScope task){}
+    TaskScope task(UUID player){var t=trusted.get(player);return profile(player)!=null&&t!=null?t.task():null;}
     private final java.util.concurrent.ConcurrentMap<UUID,Trust> trusted=new ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentMap<UUID,String> primaryGroups=new ConcurrentHashMap<>();
     String profile(UUID player){
@@ -109,7 +110,7 @@ final class VerificationGate implements Listener,AutoCloseable {
             if(s.identity()==null||rows.size()>=2000)continue;
             rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"regenerate\":"+s.regenerate()+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+",\"primaryGroup\":"+q(primaryGroups.getOrDefault(s.player(),""))+"}");
         }
-        return "{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
+        return "{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"taskScopes\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
     }
     private static String q(String v){return OrionBridge.quote(v);}
     String action(String body){
@@ -158,16 +159,18 @@ final class VerificationGate implements Listener,AutoCloseable {
             case "RESUME"->{if(fields.length!=8)return "INVALID";result=state.resume(player,session,identity,fields[4].equals("-")?null:UUID.fromString(fields[4]),UUID.fromString(fields[5]),fields[6],Long.parseLong(fields[7]),now);}
             case "CLAIM"->{if(fields.length!=7)return "INVALID";result=state.claim(player,session,identity,UUID.fromString(fields[4]),fields[5],new String(Base64.getUrlDecoder().decode(fields[6]),StandardCharsets.UTF_8),now);}
             case "LEASE"->{
-                if(fields.length<7||fields.length>10)return "INVALID";
+                if(fields.length<7||fields.length>11)return "INVALID";
                 String profile=fields.length>=8?fields[7]:"";
                 String groups=fields.length>=9?fields[8]:"";
-                long trustUntil=fields.length==10?Long.parseLong(fields[9]):Long.parseLong(fields[6]);
+                long trustUntil=fields.length>=10?Long.parseLong(fields[9]):Long.parseLong(fields[6]);
                 trustUntil=Math.min(trustUntil,Long.parseLong(fields[6]));
+                TaskScope task=fields.length==11?TaskScope.parse(fields[10],now):null;
+                if(task!=null&&(profile.isEmpty()||trustUntil>task.expires()))return "INVALID";
                 if(!groups.isEmpty()&&!groups.matches("[a-z0-9_-]{1,40}(,[a-z0-9_-]{1,40}){0,9}"))return "INVALID";
                 if(!profile.isEmpty()&&!profile.matches("[a-z0-9_-]{1,40}"))return "INVALID";
                 result=state.lease(player,session,identity,fields[4],Long.parseLong(fields[5]),Long.parseLong(fields[6]),now,lease);
                 if(result.equals("APPLIED")){
-                    if(profile.isEmpty())trusted.remove(player);else trusted.put(player,new Trust(profile,trustUntil));
+                    if(profile.isEmpty())trusted.remove(player);else trusted.put(player,new Trust(profile,trustUntil,task));
                     if(plugin.roles()!=null)try{
                         Set<String> desired=groups.isEmpty()||plugin.moderation()!=null&&plugin.moderation().denied(player,SanctionState.Kind.ROLE_SUSPENSION)?Set.of():new HashSet<>(Arrays.asList(groups.split(",")));
                         plugin.roles().sync(p,desired,Long.parseLong(fields[6]));

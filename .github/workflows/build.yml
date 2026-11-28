@@ -25,6 +25,7 @@ jobs:
       - run: java -cp target/classes:target/test-classes io.github.engrkarlo.orionbridge.DurableLockdownSmoke
       - run: java -cp target/classes:target/test-classes io.github.engrkarlo.orionbridge.EditScopeSmoke
       - run: java -cp target/classes:target/test-classes io.github.engrkarlo.orionbridge.DashboardLayoutSmoke
+      - run: java -cp target/classes:target/test-classes io.github.engrkarlo.orionbridge.TaskBudgetSmoke
       - run: mvn -B dependency:build-classpath -Dmdep.outputFile=target/test-classpath
       - run: java -cp "target/classes:target/test-classes:$(cat target/test-classpath)" io.github.engrkarlo.orionbridge.ConfigMigrationSmoke
       - uses: actions/upload-artifact@v4

@@ -26,6 +26,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     private record ProtectedRegion(int minX,int minY,int minZ,int maxX,int maxY,int maxZ){boolean overlaps(int x,int y,int z,int endX,int endY,int endZ){return x<=maxX&&endX>=minX&&y<=maxY&&endY>=minY&&z<=maxZ&&endZ>=minZ;}}
     private final Map<String,List<ProtectedRegion>> protectedRegions;
     private final GuardBudget editBudget=new GuardBudget();
+    private final TaskBudget taskBudget;
     private final DurableLockdown lockdownState;
     private record AlertKey(UUID player,String kind){}
     private final Map<AlertKey,Long> lastAlert=new ConcurrentHashMap<>();
@@ -46,6 +47,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     OrionGuard(OrionBridge plugin,YamlConfiguration config,VerificationGate gate,LocalModeration moderation,SecurityAudit audit){
         this.plugin=plugin;this.gate=gate;this.moderation=moderation;this.audit=audit;
+        taskBudget=new TaskBudget(plugin.getDataFolder().toPath().resolve("guard-task-budgets"));
         lockdownState=new DurableLockdown(plugin.getDataFolder().toPath().resolve("guard-lockdown.state"),System.currentTimeMillis());
         containment=new GuardContainment(plugin.getDataFolder().toPath().resolve("guard-containment"),System.currentTimeMillis());
         Map<String,Profile> loaded=new HashMap<>();
@@ -95,6 +97,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         cleanup=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{
             long now=System.currentTimeMillis();
             containment.prune(now);
+            taskBudget.prune(now);
             blocks.entrySet().removeIf(e->now-e.getValue().start>=60000);
             containers.entrySet().removeIf(e->now-e.getValue().start>=60000);
             lastAlert.entrySet().removeIf(e->e.getValue()<now-3600000);
@@ -127,13 +130,14 @@ final class OrionGuard implements Listener,AutoCloseable {
         for(var region:protectedRegions.getOrDefault(world,List.of()))if(region.overlaps(x,y,z,ex,ey,ez))return true;
         return false;
     }
-    boolean entityEdit(UUID player){return profile(player).entityTasks();}
-    boolean scopedEdit(UUID player,String world,int x,int y,int z,boolean biome,boolean entity){return profile(player).scope().permits(world,x,y,z,entity?EditScope.Operation.ENTITY:biome?EditScope.Operation.BIOME:EditScope.Operation.BLOCK);}
+    boolean entityEdit(UUID player){return editProfile(player).entityTasks();}
+    boolean scopedEdit(UUID player,String world,int x,int y,int z,boolean biome,boolean entity){var op=entity?EditScope.Operation.ENTITY:biome?EditScope.Operation.BIOME:EditScope.Operation.BLOCK;var task=gate==null?null:gate.task(player);return (task==null||task.permits(world,op,System.currentTimeMillis()))&&editProfile(player).scope().permits(world,x,y,z,op);}
     private static int clamp(int n,int low,int high){return Math.max(low,Math.min(high,n));}
     boolean open(){return open;}
     void worldEditReady(){worldEditReady=true;}
     @EventHandler public void pluginDisabled(org.bukkit.event.server.PluginDisableEvent e){if(Set.of("WorldEdit","FastAsyncWorldEdit").contains(e.getPlugin().getName()))worldEditReady=false;}
-    Profile profile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
+    Profile profile(UUID id){return gate!=null&&gate.task(id)!=null?ORDINARY:editProfile(id);}
+    private Profile editProfile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
     String identity(UUID id){return gate==null?null:gate.linkedIdentity(id);}
     boolean staffChat(UUID id){return !frozen(id)&&profile(id).staffChat();}
     boolean profileStaffChat(String name){return profiles.getOrDefault(name,ORDINARY).staffChat();}
@@ -200,7 +204,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         // them while WE protection is on instead of claiming complete coverage.
         if(edit&&blockEdits&&Set.of("butcher","remove","killall").contains(name)){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Direct entity command denied; no guarded extent guarantee");return;}
         if((!blockCommands&&(!edit||!blockEdits))||!sensitive)return;
-        Profile profile=profile(player.getUniqueId());
+        Profile profile=edit?editProfile(player.getUniqueId()):profile(player.getUniqueId());
         boolean allowed=resolved!=null&&(edit?profile.editLimit()>0&&profile.scope().permitsCommand(owner,name):profile.commands().contains(owner+":"+name));
         if(!allowed){e.setCancelled(true);alert(player,"GUARD_COMMAND_BLOCKED","Blocked sensitive command category "+name+"; resolved owner="+owner);player.sendMessage(Component.text("OrionGuard: this operation requires an approved staff profile."));}
         else alert(player,"TRUSTED_OPERATION","Authorized command category "+name+"; owner="+owner);
@@ -244,14 +248,15 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     int operationLimit(UUID player,String world){
         if(!open||!worldEditReady||protectedWorlds.contains(world)||frozen(player)||containment.denied(subject(player),GuardContainment.Type.WORLDEDIT_RESTRICTION,System.currentTimeMillis())||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
-        return profile(player).editLimit();
+        var task=gate==null?null:gate.task(player);return task!=null&&!task.world().equals(world)?0:Math.min(editProfile(player).editLimit(),task==null?Integer.MAX_VALUE:task.budget());
     }
     boolean enforceEdits(){return blockEdits;}
     boolean allowNonPlayerEdits(){return allowNonPlayerEdits;}
     boolean reserveNonPlayerEdit(AtomicInteger used){return open&&worldEditReady&&allowNonPlayerEdits&&!lockdown()&&GuardBudget.operation(used,nonPlayerOperation)&&editBudget.reserve(NON_PLAYER,System.nanoTime(),nonPlayerMinute);}
     boolean reserveEdit(UUID player,String world,AtomicInteger used){
         int max=operationLimit(player,world);
-        return GuardBudget.operation(used,max)&&editBudget.reserve(player,System.nanoTime(),profile(player).minuteLimit());
+        if(!GuardBudget.operation(used,max)||!editBudget.reserve(player,System.nanoTime(),editProfile(player).minuteLimit()))return false;
+        var task=gate==null?null:gate.task(player);return task==null||taskBudget.reserve(identity(player),task,System.currentTimeMillis());
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void teleport(PlayerTeleportEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void bucket(PlayerBucketEmptyEvent e){if(denied(e.getPlayer(),GuardContainment.Type.BUILD_RESTRICTION))e.setCancelled(true);}
