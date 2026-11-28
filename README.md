@@ -1,8 +1,8 @@
-# OrionBridge 2.0.0-alpha.4
+# OrionBridge 2.0.0-alpha.5
 
-**Development foundation — not a production security release.** Existing v1 telemetry remains supported. New: opt-in signed Pull audit feed, versioned configuration migration, and central SQLite identity/case/evidence primitives. Opt-in typed local Minecraft moderation supports a subset of sanctions; experimental mandatory verification has a live Pull contract, Java dialog/inventory and Bedrock forms. An experimental OrionBot extension is included for Discord verification, evidence, network comparison and Minecraft moderation. Full role/chat sync and third-party security hooks are still pending. See [extension setup](docs/extension-setup.md). See [development status](docs/development-status.md) and [architecture](docs/architecture.md).
+**Development foundation — not a production security release.** Existing v1 telemetry remains supported. New: opt-in signed Pull audit feed, versioned configuration migration, and central SQLite identity/case/evidence primitives. Opt-in typed local Minecraft moderation supports a subset of sanctions; experimental mandatory verification has a live Pull contract, Java dialog/inventory and Bedrock forms. Discord verification, evidence, network comparison and Minecraft moderation are built into OrionBot; no separate extension is required. Full role/chat sync and third-party security hooks are still pending. See [native setup](https://github.com/engrkarlo/OrionBot/blob/main/docs/orionbridge.md). See [development status](docs/development-status.md) and [architecture](docs/architecture.md).
 
-Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge). Existing OrionBot integration remains in place during migration.
+Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge). OrionBot contains the native Discord companion; this repository builds the Minecraft JAR and tests the protocol.
 
 OrionBridge is an optional Paper 26.3 plugin that lets OrionBot read live Minecraft information, including custom skin textures and performance metrics. Your normal Discord status panels still work without it.
 
@@ -63,7 +63,7 @@ In Discord, as a member with Manage Server permission:
 3. Enter your HTTPS domain (for example `https://bridge.example.com`), the token from Minecraft's config file, and a polling interval such as 10 seconds.
 4. Save and check that the connection says **Connected**. Use **Test / refresh** if needed.
 
-No `ORION_BRIDGE_*` environment variables are required for Pull. The bot adds `/v1/snapshot` itself. Polling is on demand during status requests and scheduled panel updates, not an independent constant polling loop.
+No `ORION_BRIDGE_*` environment variables are required for Pull. The bot adds `/v1/snapshot` itself. Telemetry polling is on demand during status requests and scheduled panel updates. Enabled security services use a separate bounded Pull polling loop. The proxy must forward the signed v2 GET and POST paths for security features.
 
 ### 4. See the results
 
@@ -75,7 +75,7 @@ The console startup summary credits Karlow and shows the active mode, collection
 
 ## Reload and manage tokens
 
-Use `/ob reload` after editing `config.yml`. It requires `orionbridge.reload` (operators by default). Reload validates the settings, restarts the listener/session, and attempts to restore previous settings if the replacement fails. Installing a new JAR still requires a server restart.
+Use `/ob reload` after editing telemetry settings in `config.yml`. Security, correlation and verification settings require a full Paper restart. It requires `orionbridge.reload` (operators by default). Reload validates the settings, restarts the listener/session, and attempts to restore previous settings if the replacement fails. Installing a new JAR still requires a server restart.
 
 For Pull, clear or replace the token in Minecraft's config, reload, reopen the file and update the token in Discord. Disconnecting in Discord removes the bot's configuration but does not invalidate the plugin's token; rotate it on Minecraft to revoke old clients. Never post tokens in Discord or share screenshots that reveal them.
 
@@ -132,6 +132,6 @@ From this repository root with JDK 25 and Maven 3.9+:
 mvn -B -f pom.xml clean verify
 ```
 
-Output: `target/OrionBridge-2.0.0-alpha.4.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
+Output: `target/OrionBridge-2.0.0-alpha.5.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
 
 [OrionBot host project](https://github.com/engrkarlo/OrionBot)

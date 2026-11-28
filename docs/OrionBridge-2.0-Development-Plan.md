@@ -2,6 +2,8 @@
 
 Status: proposed implementation contract; not a claim of completed features. Target: Paper 26.3, Java 25, OrionBot (Discord Components V2), Java inventory/dialog and native Bedrock forms. Repository: existing Orion-Linker repository, repurposed for OrionBridge. Preserve repository history and existing OrionBot compatibility until migration is verified.
 
+Implementation update (alpha.5): Discord functionality is built into OrionBot, not an extension. Legacy extension data migrates automatically; the rest of this document remains the target specification, not completed features.
+
 ## Goals and boundaries
 - Mandatory one-to-one Minecraft/Discord verification after administrator setup; Java online identities and authenticated Floodgate XUIDs; offline Java only after supported authentication succeeds. No passwords or Microsoft credentials collected.
 - Per-guild identity uniqueness; per-server verification, roles, channels, operation budgets, security policy; server or guild-wide moderation scope. No cross-guild data access or shared IP matching keys.

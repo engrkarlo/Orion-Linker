@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0-alpha.5
+- Discord companion integrated directly into OrionBot's Minecraft Status Manager, preserving existing Pull pairing and interaction IDs. No extension package is required or built.
+- OrionBot automatically migrates legacy extension SQLite data and credentials into its native data directory; original data retained. See OrionBot's native setup guide.
+- Minecraft config v5 and protocol unchanged, preserving all current settings and local sanction data. Older config versions continue to migrate with backups.
+- JAR and protocol regression builds remain here; native Discord regression checks run in OrionBot. Advanced security roadmap and live acceptance remain pending.
+
 ## 2.0.0-alpha.4
 - Guild-scoped OrionBot extension with independent bounded Pull scheduler, private setup credentials, per-server channel and staff-role selectors, verification panel, evidence exports and case approval/revocation UI.
 - Encrypted audit/control credentials per server and network correlation key per guild; existing telemetry pairing reused.

@@ -16,3 +16,6 @@ The central store is an internal library, not an authorization boundary. Host ad
 
 ## Acceptance
 Test concurrent linking, duplicate/replay, spoofed offline identities, guild isolation, stale role authorization, command aliases, FAWE async coverage, overlapping sanctions, crash recovery, queue bounds, config preservation and actual end-to-end Discord/Paper/Bedrock interactions before 2.0 stable.
+
+## Native host placement
+OrionBot's `src/minecraft-status/bridge` contains the production Discord companion; this repository retains protocol test helpers and the standalone Paper plugin. No extension lifecycle is needed. OrionBot migrates old extension data automatically and retains the original backup.

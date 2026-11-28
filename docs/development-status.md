@@ -1,4 +1,4 @@
-# Development history — through alpha.4
+# Development history — through alpha.5
 
 The sections below describe successive implementation stages. Alpha.4 includes the experimental host extension; earlier statements about missing host wiring describe earlier stages.
 
@@ -35,3 +35,6 @@ Native Java dialog / inventory and Bedrock forms use independently configurable 
 ## Alpha.4 Discord host and network correlation
 
 Install the extension ZIP as described in [extension setup](extension-setup.md). The host reads existing paired servers from OrionBot, with guild opt-in, fresh Discord membership checks, bounded polling, evidence exports, security channel delivery and case approval/revocation. Staff roles authorize evidence viewing and case requests only. No trusted in-game staff bypass, LuckPerms/WorldEdit/FAWE/CoreProtect hooks, role/chat sync, recovery/unlink workflow, Discord-side punishments or rollback is implemented yet. Channel privacy requires administrator review of every role overwrite. Discord alert delivery is at least once: a process crash after sending but before saving the receipt can duplicate an alert. Large guilds and slow endpoints can delay leases; load testing is required. No raw IP is retained; correlation is opt-in after confirming real client addresses and reports only shared fingerprints. Never auto-punish based on correlation.
+
+## Alpha.5 native integration
+The Discord companion now runs inside OrionBot. See [native setup and automatic migration](https://github.com/engrkarlo/OrionBot/blob/main/docs/orionbridge.md). The alpha.4 extension instructions below/above are historical; do not install the extension. Existing v5 Minecraft configuration, keys, local case and audit data are unchanged. The original roadmap remains incomplete.

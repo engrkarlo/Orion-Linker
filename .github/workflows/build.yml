@@ -35,15 +35,3 @@ jobs:
         with:
           node-version: '22'
       - run: node --test test/*.test.js
-      - run: node --check extension/orionbridge/extension.js
-      - run: |
-          mkdir -p dist/orionbridge
-          cp -r bot dist/orionbridge/
-          cp extension/orionbridge/* dist/orionbridge/
-          cp docs/extension-setup.md dist/orionbridge/README.md
-          cd dist && zip -r OrionBridge-OrionBot-Extension.zip orionbridge
-      - uses: actions/upload-artifact@v4
-        with:
-          name: OrionBridge-OrionBot-Extension
-          path: dist/OrionBridge-OrionBot-Extension.zip
-          if-no-files-found: error
