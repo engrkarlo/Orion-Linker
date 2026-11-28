@@ -152,9 +152,9 @@ public final class OrionBridge extends JavaPlugin {
         Settings previousSettings=session==null?null:session.settings;
         final YamlConfiguration next;final java.util.Map<String,YamlConfiguration> appearance;final Settings settings;
         try{
-            next=CategoryConfig.load(this);appearance=loadAppearance();settings=readSettings(next,previousSettings==null);
+            next=CategoryConfig.load(this);appearance=loadAppearance();settings=readSettings(next,previousSettings==null);validateDependencies(next,settings);
         }catch(Exception|LinkageError e){getLogger().warning("Configuration not applied: "+safeError(e));return ReloadResult.UNCHANGED;}
-        if(previous!=null&&session!=null&&verificationFallback==null&&(!verifyRequested(previous)||verification!=null)&&CategoryConfig.same(previous,next)){
+        if(previous!=null&&session!=null&&verificationFallback==null&&(!verifyRequested(previous)||verification!=null)&&CategoryConfig.same(previous,next)&&runtimeMatches(next,settings)){
             // Only presentation changed; keep sessions, leases, HTTP and queues.
             try{reloadAppearance(next,appearance);return ReloadResult.APPLIED;}
             catch(Exception|LinkageError failure){getLogger().warning("Appearance reload rejected: "+safeError(failure));return ReloadResult.UNCHANGED;}
@@ -183,6 +183,27 @@ public final class OrionBridge extends JavaPlugin {
             for(Player player:java.util.List.copyOf(getServer().getOnlinePlayers()))player.kick(messages.render("verification.configuration-unavailable"));
             return ReloadResult.FAILED;
         }
+    }
+    private void validateDependencies(YamlConfiguration cfg,Settings settings){
+        boolean pull=settings.mode().equals("pull");
+        if(verifyRequested(cfg)&&(!pull||!cfg.getBoolean("control.enabled")))throw new IllegalArgumentException("Verification requires Pull mode and signed control");
+        if(cfg.getBoolean("chat.enabled")&&(!verifyRequested(cfg)||!cfg.getBoolean("control.enabled")||!pull))throw new IllegalArgumentException("Chat requires Pull mode, verification and signed control");
+        if(pull&&cfg.getBoolean("audit.enabled"))new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),cfg.getString("audit.signing-key",""));
+        if(pull&&cfg.getBoolean("control.enabled")){
+            String key=cfg.getString("control.signing-key","");
+            if(key.equals(settings.token())||key.equals(cfg.getString("audit.signing-key","")))throw new IllegalArgumentException("Control key must be distinct");
+            new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),key);
+        }
+    }
+    private boolean runtimeMatches(YamlConfiguration cfg,Settings settings){
+        boolean pull=settings.mode().equals("pull");
+        return dashboards!=null&&(verification!=null)==verifyRequested(cfg)
+            &&(audit!=null)==(pull&&cfg.getBoolean("audit.enabled"))
+            &&(control!=null)==(pull&&cfg.getBoolean("control.enabled"))
+            &&(guard!=null)==(pull&&cfg.getBoolean("guard.enabled"))
+            &&(roles!=null)==(pull&&cfg.getBoolean("roles.enabled"))
+            &&(chat!=null)==(pull&&cfg.getBoolean("chat.enabled")&&verification!=null)
+            &&(recovery!=null)==(pull&&cfg.getBoolean("recovery.enabled"));
     }
     private void refreshOnline(){
         if(moderation!=null)moderation.enforceOnlineBans();
@@ -216,11 +237,15 @@ public final class OrionBridge extends JavaPlugin {
         };
         getServer().getPluginManager().registerEvents(verificationFallback,this);
     }
-    private static final String CONSOLE_RULE="  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
-    private void line(String text){getServer().getConsoleSender().sendMessage(text+ChatColor.RESET);}
-    private void section(String label){line(ChatColor.DARK_GRAY+"  ── "+ChatColor.LIGHT_PURPLE+ChatColor.BOLD+label+ChatColor.RESET+ChatColor.DARK_GRAY+" ──");}
+    private void console(String key,String... values){
+        if(themes.isEmpty())return;
+        getServer().getConsoleSender().sendMessage(messages.render("console."+key,values));
+    }
+    private void section(String key){console("section","label",messages.raw("console.sections."+key));}
     private void field(String label,String value,ChatColor color){
-        line(ChatColor.GRAY+String.format(java.util.Locale.ROOT,"  %-23s ",label)+color+value);
+        String style=switch(color){case GREEN->"active";case RED->"error";case YELLOW->"warning";case DARK_GRAY->"inactive";case AQUA->"info";default->"normal";};
+        String text=ChatColor.stripColor(value);String translated=messages.raw("console.labels."+label);
+        console("fields."+style,"label",String.format(java.util.Locale.ROOT,"%-23s",translated),"value",text);
     }
     private boolean feature(String label,boolean requested,boolean available,String detail){
         var state=StartupSummary.status(requested,available);
@@ -231,47 +256,45 @@ public final class OrionBridge extends JavaPlugin {
     private void integration(String name,String detail){
         Plugin dependency=getServer().getPluginManager().getPlugin(name);
         boolean enabled=dependency!=null&&dependency.isEnabled();
-        field(name,enabled?"AVAILABLE  "+ChatColor.GRAY+StartupSummary.clean(dependency.getDescription().getVersion())+" · "+detail:"NOT LOADED  "+ChatColor.GRAY+detail,enabled?ChatColor.AQUA:ChatColor.DARK_GRAY);
+        field(name.toLowerCase(java.util.Locale.ROOT),enabled?"AVAILABLE  "+ChatColor.GRAY+StartupSummary.clean(dependency.getDescription().getVersion())+" · "+detail:"NOT LOADED  "+ChatColor.GRAY+detail,enabled?ChatColor.AQUA:ChatColor.DARK_GRAY);
     }
     private void startupBanner(YamlConfiguration cfg,boolean failed,long started){
         Session current=session;
-        line(ChatColor.DARK_GRAY+CONSOLE_RULE);
-        line(ChatColor.LIGHT_PURPLE+""+ChatColor.BOLD+"  ✦ O R I O N "+ChatColor.AQUA+ChatColor.BOLD+"B R I D G E"+ChatColor.RESET+ChatColor.GRAY+"   v"+StartupSummary.clean(getDescription().getVersion()));
-        line(ChatColor.GRAY+"  Minecraft ↔ Discord  •  Identity, security & telemetry");
-        line(ChatColor.DARK_GRAY+"  Created by "+ChatColor.LIGHT_PURPLE+"Karlow");
-        section("01 / Runtime & configuration");
-        field("Platform","Paper "+StartupSummary.clean(getServer().getMinecraftVersion())+" · Java "+Runtime.version().feature(),ChatColor.WHITE);
-        field("Configuration",cfg==null?"Unavailable":"Schema v"+cfg.getInt("config-version")+" · 8 feature files",cfg==null?ChatColor.RED:ChatColor.AQUA);
-        field("Authentication",getServer().getOnlineMode()?"Online-mode Java":"Offline-mode / trusted authentication required",getServer().getOnlineMode()?ChatColor.GREEN:ChatColor.YELLOW);
-        field("Credentials","Values hidden · never printed",ChatColor.DARK_GRAY);
-        section("02 / Transport & privacy");
-        if(current==null)field("Transport","INACTIVE · check configuration and listener",ChatColor.RED);
+        if(themes.isEmpty()){getLogger().warning("Startup configuration unavailable; see earlier errors.");return;}
+        console("divider");console("title","version",StartupSummary.clean(getDescription().getVersion()));console("subtitle");console("creator");
+        section("runtime");
+        field("platform","Paper "+StartupSummary.clean(getServer().getMinecraftVersion())+" · Java "+Runtime.version().feature(),ChatColor.WHITE);
+        field("configuration",cfg==null?"Unavailable":"Schema v"+cfg.getInt("config-version")+" · 8 feature files",cfg==null?ChatColor.RED:ChatColor.AQUA);
+        field("authentication",getServer().getOnlineMode()?"Online-mode Java":"Offline-mode / trusted authentication required",getServer().getOnlineMode()?ChatColor.GREEN:ChatColor.YELLOW);
+        field("credentials","Values hidden · never printed",ChatColor.DARK_GRAY);
+        section("transport");
+        if(current==null)field("transport","INACTIVE · check configuration and listener",ChatColor.RED);
         else{
             Settings s=current.settings;
-            field("Transport",s.mode().toUpperCase(java.util.Locale.ROOT)+"  "+(s.mode().equals("pull")?"· "+s.bind()+":"+s.port():"· outbound delivery"),ChatColor.AQUA);
-            field("Telemetry","Every "+s.seconds()+"s · local collection, async delivery",ChatColor.WHITE);
-            field("Remote connection","Not verified at startup",ChatColor.YELLOW);
-            field("Roster privacy","Vanish "+(s.hideVanished()?"on":"off")+" · Listing "+(s.respectListing()?"on":"off"),ChatColor.WHITE);
-            feature("Saved skin lookup",s.savedSkins(),current.storedSkins!=null,"optional SkinsRestorer fallback");
+            field("transport",s.mode().toUpperCase(java.util.Locale.ROOT)+"  "+(s.mode().equals("pull")?"· "+s.bind()+":"+s.port():"· outbound delivery"),ChatColor.AQUA);
+            field("telemetry","Every "+s.seconds()+"s · local collection, async delivery",ChatColor.WHITE);
+            field("remote","Not verified at startup",ChatColor.YELLOW);
+            field("privacy","Vanish "+(s.hideVanished()?"on":"off")+" · Listing "+(s.respectListing()?"on":"off"),ChatColor.WHITE);
+            feature("skins",s.savedSkins(),current.storedSkins!=null,"optional SkinsRestorer fallback");
         }
-        section("03 / Local services");
+        section("services");
         boolean degraded=failed||current==null||cfg==null;
         if(cfg!=null){
             boolean verify=cfg.getBoolean("verification.enabled");
             boolean complete=cfg.getBoolean("verification.setup-complete");
-            if(verify&&!complete){field("Verification","SETUP REQUIRED · gate not active",ChatColor.YELLOW);degraded=true;}
-            else degraded|=feature("Verification",verify,verification!=null,verification==null?"Java / Bedrock / AuthMe":"5-minute reconnect-safe challenge");
-            degraded|=feature("Signed audit",cfg.getBoolean("audit.enabled"),audit!=null,"event journal");
-            degraded|=feature("Signed control",cfg.getBoolean("control.enabled"),control!=null,"moderation and policy");
-            degraded|=feature("OrionGuard",cfg.getBoolean("guard.enabled"),guard!=null,guard==null?"local enforcement":"profiles: "+guard.profiles().size()+" · lockdown "+(guard.lockdown()?"ACTIVE":"off"));
-            degraded|=feature("Rank reconciliation",cfg.getBoolean("roles.enabled"),roles!=null,"LuckPerms");
-            degraded|=feature("Chat relay",cfg.getBoolean("chat.enabled"),chat!=null,"public / private staff routes");
-            degraded|=feature("Recovery",cfg.getBoolean("recovery.enabled"),recovery!=null,"CoreProtect");
-            degraded|=feature("Verification lobby",verify&&cfg.getBoolean("verification.lobby.enabled"),verification!=null&&cfg.getBoolean("verification.lobby.enabled"),"optional safe return");
-            field("Dashboard",dashboards!=null?"ACTIVE · "+(cfg.getString("verification.java-interface","DIALOG").equalsIgnoreCase("INVENTORY")?"Java inventory":"Java dialog")+" / Bedrock forms":"UNAVAILABLE",dashboards!=null?ChatColor.GREEN:ChatColor.YELLOW);
-            if(verify&&complete&&(control==null||current==null||!current.settings.mode().equals("pull"))){field("Verification transport","UNAVAILABLE · players may be restricted",ChatColor.RED);degraded=true;}
+            if(verify&&!complete){field("verification","SETUP REQUIRED · gate not active",ChatColor.YELLOW);degraded=true;}
+            else degraded|=feature("verification",verify,verification!=null,verification==null?"Java / Bedrock / AuthMe":"5-minute reconnect-safe challenge");
+            degraded|=feature("audit",cfg.getBoolean("audit.enabled"),audit!=null,"event journal");
+            degraded|=feature("control",cfg.getBoolean("control.enabled"),control!=null,"moderation and policy");
+            degraded|=feature("guard",cfg.getBoolean("guard.enabled"),guard!=null,guard==null?"local enforcement":"profiles: "+guard.profiles().size()+" · lockdown "+(guard.lockdown()?"ACTIVE":"off"));
+            degraded|=feature("roles",cfg.getBoolean("roles.enabled"),roles!=null,"LuckPerms");
+            degraded|=feature("chat",cfg.getBoolean("chat.enabled"),chat!=null,"public / private staff routes");
+            degraded|=feature("recovery",cfg.getBoolean("recovery.enabled"),recovery!=null,"CoreProtect");
+            degraded|=feature("lobby",verify&&cfg.getBoolean("verification.lobby.enabled"),verification!=null&&cfg.getBoolean("verification.lobby.enabled"),"optional safe return");
+            field("dashboard",dashboards!=null?"ACTIVE · "+(cfg.getString("verification.java-interface","DIALOG").equalsIgnoreCase("INVENTORY")?"Java inventory":"Java dialog")+" / Bedrock forms":"UNAVAILABLE",dashboards!=null?ChatColor.GREEN:ChatColor.YELLOW);
+            if(verify&&complete&&(control==null||current==null||!current.settings.mode().equals("pull"))){field("verification-transport","UNAVAILABLE · players may be restricted",ChatColor.RED);degraded=true;}
         }
-        section("04 / Optional integrations");
+        section("integrations");
         integration("floodgate","Bedrock identity / forms");
         integration("Geyser-Spigot","Bedrock client detection");
         integration("AuthMe","offline Java authentication");
@@ -280,14 +303,14 @@ public final class OrionBridge extends JavaPlugin {
         integration("FastAsyncWorldEdit",worldEditGuard!=null?"WE-compatible hook registered":"no edit hook");
         integration("CoreProtect",recovery!=null?"recovery active":"recovery inactive");
         if(cfg!=null&&cfg.getBoolean("guard.enabled")&&cfg.getBoolean("guard.enforce-worldedit",true)&&(installed("WorldEdit")||installed("FastAsyncWorldEdit"))&&worldEditGuard==null){
-            field("Edit protection","UNAVAILABLE · supported edit commands denied if Guard initialized",ChatColor.YELLOW);degraded=true;
+            field("edit-protection","UNAVAILABLE · supported edit commands denied if Guard initialized",ChatColor.YELLOW);degraded=true;
         }
-        section("05 / Startup summary");
-        field("Local state",current==null?"INACTIVE":degraded?"DEGRADED · review messages above":"READY · local initialization complete",current==null?ChatColor.RED:degraded?ChatColor.YELLOW:ChatColor.GREEN);
-        field("Elapsed",String.format(java.util.Locale.ROOT,"%.2f s",(System.nanoTime()-started)/1_000_000_000d),ChatColor.AQUA);
-        field("Diagnostics","ob status  ·  ob reload  ·  all configuration files",ChatColor.WHITE);
-        if(verificationFallback!=null||verifyRequested(cfg))field("Emergency recovery","Console: ob verification-off",ChatColor.YELLOW);
-        line(ChatColor.DARK_GRAY+CONSOLE_RULE);
+        section("summary");
+        field("local-state",current==null?"INACTIVE":degraded?"DEGRADED · review messages above":"READY · local initialization complete",current==null?ChatColor.RED:degraded?ChatColor.YELLOW:ChatColor.GREEN);
+        field("elapsed",String.format(java.util.Locale.ROOT,"%.2f s",(System.nanoTime()-started)/1_000_000_000d),ChatColor.AQUA);
+        field("diagnostics","ob status  ·  ob reload  ·  all configuration files",ChatColor.WHITE);
+        if(verificationFallback!=null||verifyRequested(cfg))field("emergency","Console: ob verification-off",ChatColor.YELLOW);
+        console("divider");
     }
     private static boolean verifyRequested(YamlConfiguration cfg){return cfg!=null&&cfg.getBoolean("verification.enabled")&&cfg.getBoolean("verification.setup-complete");}
 

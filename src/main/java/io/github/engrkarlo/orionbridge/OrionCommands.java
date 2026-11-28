@@ -21,6 +21,7 @@ final class OrionCommands implements TabExecutor {
         if(sub.equals("status"))return sender.hasPermission("orionbridge.admin")&&(!(sender instanceof Player p)||plugin.verification()==null||verified(p));
         if(sub.equals("reload"))return sender.hasPermission("orionbridge.reload")&&(!(sender instanceof Player p)||(plugin.verification()==null||verified(p))&&(plugin.guard()==null||plugin.guard().profile(p.getUniqueId()).commands().contains("orionbridge:ob-reload")));
         if(!(sender instanceof Player p))return false;
+        if(plugin.moderation()!=null&&plugin.moderation().denied(p.getUniqueId(),SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.COMMAND_RESTRICTION,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)&&!ACCOUNT.contains(sub)&&!Set.of("link","confirm").contains(sub))return false;
         if(sub.equals("link")||sub.equals("confirm"))return plugin.verification()!=null;
         if(sub.equals("account"))return plugin.verification()!=null;
         if(sub.equals("return"))return verified(p);

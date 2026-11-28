@@ -4,9 +4,9 @@
 # Use MiniMessage for colors. Usage and descriptions are literal placeholders.
 # Click suggestions use real command names regardless of displayed text.
 theme-version: 1
-header: '<dark_gray><st>                                      </st></dark_gray><newline><gradient:#b48cff:#f5b6ff><bold>✦ OrionBridge</bold></gradient> <gray>• Command Guide</gray><newline><gray>Choose a command to get started.</gray>'
+header: '<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━━</dark_gray><newline><gradient:#b48cff:#f5b6ff><bold>✦ OrionBridge</bold></gradient> <gray>• Command Guide</gray><newline><gray>Choose a command to get started.</gray>'
 entry: ' <light_purple>› <usage></light_purple> <dark_gray>—</dark_gray> <gray><description></gray>'
-footer: '<dark_gray><st>                                      </st></dark_gray>'
+footer: '<dark_gray>━━━━━━━━━━━━━━━━━━━━━━━━</dark_gray>'
 click-to-suggest: true
 hover-hint: true
 hover: '<gray>Click to suggest </gray><light_purple><command></light_purple>'

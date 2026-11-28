@@ -138,7 +138,8 @@ final class CategoryConfig {
                     for(String profile:child.getKeys(false))if(child.isConfigurationSection(profile)&&template.isConfigurationSection(profile))merge(child.getConfigurationSection(profile),template.getConfigurationSection(profile),comments);
                 }else merge(child,defaults.getConfigurationSection(key),comments);
             }else if(!current.contains(key,true))current.set(key,defaults.get(key));
-            else if(current.isConfigurationSection(key))throw new IOException("Expected a value, not a section: "+key);
+            else if(current.isConfigurationSection(key))throw new LayoutException("Expected a value, not a section: "+current.getCurrentPath()+"."+key);
+            else validateType(current,defaults,key);
             if(comments&&!defaults.getComments(key).isEmpty()){
                 var notes=new ArrayList<>(defaults.getComments(key));for(String note:current.getComments(key))if(!notes.contains(note))notes.add(note);current.setComments(key,notes);
             }
@@ -146,6 +147,11 @@ final class CategoryConfig {
         if(comments&&current instanceof YamlConfiguration yaml&&defaults instanceof YamlConfiguration template){
             var header=new ArrayList<>(template.options().getHeader());for(String note:yaml.options().getHeader())if(!header.contains(note))header.add(note);yaml.options().setHeader(header);
         }
+    }
+    private static void validateType(ConfigurationSection current,ConfigurationSection defaults,String key)throws LayoutException{
+        Object value=defaults.get(key);
+        boolean valid=value instanceof Boolean?current.isBoolean(key):value instanceof Integer?current.isInt(key):value instanceof String?current.isString(key):value instanceof List<?>?current.isList(key):true;
+        if(!valid)throw new LayoutException("Invalid value type: "+current.getCurrentPath()+"."+key);
     }
     static void backup(Path file,String version)throws IOException{
         Path backup=Files.createTempFile(file.getParent(),file.getFileName()+"."+version+".",".bak");

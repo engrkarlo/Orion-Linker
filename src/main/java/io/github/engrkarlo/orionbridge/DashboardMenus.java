@@ -47,25 +47,25 @@ final class DashboardMenus implements Listener,AutoCloseable {
     }
     private void message(Player p,String key,String fallback){p.sendMessage(themed("messages."+key,fallback));}
     private Material material(String key,Material fallback){String value=theme.getString("materials."+key);Material m=value==null?null:Material.matchMaterial(value);return m!=null&&m.isItem()&&!m.isAir()?m:fallback;}
-    private Entry button(String key,String fallback,Material material,Runnable run){return entry(key,component(label(key,fallback)),material,run,null);}
+    private Entry button(String key,Material material,Runnable run){return entry(key,component(label(key,key)),material,run,null);}
     private Entry entry(String key,Component name,Material fallback,Runnable run,UUID head){String tooltip=theme.getString("tooltips."+key,"");return new Entry(name,material(key,fallback),run,head,theme.getString("images."+key,""),tooltip.isBlank()?null:component(tooltip));}
     void account(Player p){
         if(!verified(p)){message(p,"verify-first","Verify first using /ob link.");return;}
         var s=plugin.verification().session(p.getUniqueId());
         String group=plugin.roles()==null?theme.getString("states.unavailable","Unavailable"):plugin.roles().primary(p.getUniqueId());
         List<Entry> entries=new ArrayList<>();
-        entries.add(button("punishments","Punishments",Material.BOOK,()->punishments(p,s.identity(),false)));
-        entries.add(button("report","Report",Material.PAPER,()->report(p)));
-        entries.add(button("appeal","Appeal a case",Material.WRITABLE_BOOK,()->appeal(p)));
-        entries.add(button("refresh","Refresh account",Material.CLOCK,()->account(p)));
-        if(admin(p))entries.add(button("admin","Administration",Material.NETHER_STAR,()->adminMenu(p)));
+        entries.add(button("punishments",Material.BOOK,()->punishments(p,s.identity(),false)));
+        entries.add(button("report",Material.PAPER,()->report(p)));
+        entries.add(button("appeal",Material.WRITABLE_BOOK,()->appeal(p)));
+        entries.add(button("refresh",Material.CLOCK,()->account(p)));
+        if(admin(p))entries.add(button("admin",Material.NETHER_STAR,()->adminMenu(p)));
         show(p,false,"Account",themed("bodies.account","Linked Discord: <discord>\nMinecraft identity: <identity>\nPrimary group: <group>\nTrusted profile: <profile>","discord",s.linked(),"identity",s.identity(),"group",group,"profile",Objects.toString(plugin.verification().profile(p.getUniqueId()),theme.getString("states.none","None"))),entries);
     }
     void appeal(Player p){
         if(!verified(p))return;
         Component details=themed("bodies.appeal-a-case","Open the Discord verification panel and choose Appeal a case. Enter your case ID and explanation. Use My appeals to track the decision. An appeal does not automatically remove restrictions.");
         if(!invite.isBlank())details=details.append(Component.newline()).append(themed("bodies.discord-invite","Discord: <invite>","invite",invite));
-        show(p,false,"Appeal a case",details,List.of(button("case-ids","View case IDs",Material.BOOK,()->punishments(p,plugin.verification().linkedIdentity(p.getUniqueId()),false)),button("back","Back",Material.ARROW,()->account(p))));
+        show(p,false,"Appeal a case",details,List.of(button("case-ids",Material.BOOK,()->punishments(p,plugin.verification().linkedIdentity(p.getUniqueId()),false)),button("back",Material.ARROW,()->account(p))));
     }
     void report(Player p){
         if(!verified(p))return;
@@ -82,12 +82,12 @@ final class DashboardMenus implements Listener,AutoCloseable {
         var list=plugin.moderation()==null?List.<SanctionState.Case>of():plugin.moderation().active(identity);
         Component details=themed("bodies.punishments","Active local sanctions: <count>","count",Integer.toString(list.size()));
         for(var c:list.stream().limit(12).toList())details=details.append(Component.newline()).append(themed("bodies.sanction","<kind> · <id>\n<expiry> · <reason>","kind",label("type-"+key(c.kind().name()),c.kind().name()),"id",c.id().toString(),"expiry",c.expiry()==0?theme.getString("labels.indefinite","Indefinite"):java.time.Instant.ofEpochMilli(c.expiry()).toString(),"reason",c.reason()));
-        show(p,staff,"Punishments",details,List.of(button("back","Back",Material.ARROW,()->{if(staff)adminMenu(p);else account(p);})));
+        show(p,staff,"Punishments",details,List.of(button("back",Material.ARROW,()->{if(staff)adminMenu(p);else account(p);})));
     }
     void adminMenu(Player p){
         if(!admin(p)){message(p,"admin-required","A verified trusted administrator and orionbridge.admin.gui are required.");return;}
         Component status=themed("bodies.control-center","Online: <online>\nAudit: <audit>\nModeration: <moderation>\nLockdown: <lockdown>\nDiscord dashboard owns policy changes and approvals.","online",Integer.toString(plugin.getServer().getOnlinePlayers().size()),"audit",state(plugin.audit()!=null),"moderation",state(plugin.moderation()!=null),"lockdown",state(plugin.guard()!=null&&plugin.guard().lockdown()));
-        show(p,true,"Control Center",status,List.of(button("players","Online players",Material.PLAYER_HEAD,()->players(p,0)),button("search","Search identity",Material.COMPASS,()->input(p,true,"Inspect account","Canonical Minecraft identity",id->{if(SanctionState.validIdentity(id.strip()))inspect(p,id.strip(),id.strip());})),button("performance","Performance",Material.CLOCK,()->show(p,true,"Diagnostics",plugin.metrics().json(),List.of(button("back","Back",Material.ARROW,()->adminMenu(p))))),button("account","My account",Material.BOOK,()->account(p))));
+        show(p,true,"Control Center",status,List.of(button("players",Material.PLAYER_HEAD,()->players(p,0)),button("search",Material.COMPASS,()->input(p,true,"Inspect account","Canonical Minecraft identity",id->{if(SanctionState.validIdentity(id.strip()))inspect(p,id.strip(),id.strip());})),button("performance",Material.CLOCK,()->show(p,true,"Diagnostics",plugin.metrics().json(),List.of(button("back",Material.ARROW,()->adminMenu(p))))),button("account",Material.BOOK,()->account(p))));
     }
     private void players(Player p,int page){
         if(!admin(p))return;
@@ -103,14 +103,14 @@ final class DashboardMenus implements Listener,AutoCloseable {
                 else message(p,"identity-unavailable","No authenticated identity available.");
             },id));
         }
-        if(current>0)entries.add(button("previous","Previous page",Material.ARROW,()->players(p,current-1)));
-        if(current<max)entries.add(button("next","Next page",Material.ARROW,()->players(p,current+1)));
-        entries.add(button("back","Back",Material.BARRIER,()->adminMenu(p)));
+        if(current>0)entries.add(button("previous",Material.ARROW,()->players(p,current-1)));
+        if(current<max)entries.add(button("next",Material.ARROW,()->players(p,current+1)));
+        entries.add(button("back",Material.BARRIER,()->adminMenu(p)));
         show(p,true,"Players",themed("bodies.players","Page <current>/<total>","current",Integer.toString(current+1),"total",Integer.toString(max+1)),entries);
     }
     private void inspect(Player p,String identity,String name){
         if(!admin(p)||!SanctionState.validIdentity(identity))return;
-        show(p,true,"Player profile",themed("bodies.player-profile","<name>\n<identity>\nUse Discord for historical identity, evidence and policy editing.","name",name,"identity",identity),List.of(button("active-punishments","Active punishments",Material.BOOK,()->punishments(p,identity,true)),button("request","Request punishment",Material.IRON_AXE,()->request(p,identity)),button("back","Back",Material.ARROW,()->adminMenu(p))));
+        show(p,true,"Player profile",themed("bodies.player-profile","<name>\n<identity>\nUse Discord for historical identity, evidence and policy editing.","name",name,"identity",identity),List.of(button("active-punishments",Material.BOOK,()->punishments(p,identity,true)),button("request",Material.IRON_AXE,()->request(p,identity)),button("back",Material.ARROW,()->adminMenu(p))));
     }
     private void request(Player p,String identity){
         if(!admin(p)||plugin.audit()==null)return;
