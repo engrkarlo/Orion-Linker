@@ -12,6 +12,7 @@ final class StartupSummary {
     }
     static String clean(String value){
         if(value==null)return "Unknown";
-        return value.replaceAll("[\\p{Cntrl}\\p{Cf}§]"," ").substring(0,Math.min(100,value.replaceAll("[\\p{Cntrl}\\p{Cf}§]"," ").length()));
+        String clean=value.replaceAll("[\\p{Cntrl}\\p{Cf}§]"," ");
+        return clean.substring(0,Math.min(100,clean.length()));
     }
 }

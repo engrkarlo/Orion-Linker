@@ -14,7 +14,7 @@ The default is to freeze players in place. For a dedicated safe lobby world, set
 
 Map a Discord role to a named local profile in **Trusted Operations**. Multiple conflicting profiles fail closed. Staff still need the relevant underlying Minecraft permission.
 
-For a temporary edit task, choose a locally allowlisted profile, linked Discord user, duration (1–60 minutes), exact world name, operation (BLOCK, BIOME or ENTITY), and total attempted mutation budget (1–2,000,000). A different Manage Server holder must approve; neither administrator may be the recipient. The chosen profile supplies narrower region and command allowlists and per-operation/minute ceilings. The immutable task ID binds approval, expiry and cumulative quota to the authenticated subject. Changing a pending task requires fresh approval. The quota is durably reserved in blocks of 128; unused reservations can be lost on crash rather than refunded. Task-only profiles cannot confer staff chat, console, lockdown or unrelated command privileges. Keep `guard-task-budgets/` in backups. Existing unscoped grants require a new task request. Other active sanctions always take precedence.
+For a temporary edit task, choose a locally allowlisted profile, linked Discord user, duration (1–60 minutes), exact world name, operation (BLOCK, BIOME or ENTITY), and total attempted mutation budget (1–2,000,000). A different Manage Server holder must approve; neither administrator may be the recipient. The chosen profile supplies narrower region and command allowlists and per-operation/minute ceilings. Temporary tasks now require explicit `worldedit-scope.commands` entries (for example `worldedit:set`); an empty list permits no task commands. Specify the actual resolved plugin owner and command name on your server. Direct or administrative commands that lack a guarded extent guarantee (including regeneration and scripts) are denied even if listed. The immutable task ID binds approval, expiry and cumulative quota to the authenticated subject. Changing a pending task requires fresh approval. The quota is durably reserved in blocks of 128; unused reservations can be lost on crash rather than refunded. Task-only profiles cannot confer staff chat, console, lockdown or unrelated command privileges. Keep `guard-task-budgets/` in backups. Existing unscoped grants require a new task request. Other active sanctions always take precedence.
 
 ## Protection
 
@@ -46,3 +46,11 @@ The optional `headings`, `materials`, `images` and `layout` keys in `menus/dashb
 ## See also
 
 [Discord administration](https://github.com/engrkarlo/OrionBot/blob/orionbridge-2.0-completion/docs/orionbridge.md) · [Configuration](configuration.md) · [Acceptance](acceptance.md)
+
+### Expanded dashboard themes
+
+In `menus/dashboard.yml`, `bodies` controls account, case, appeal, player-list and staff screen content; `inputs` controls prompts; `messages` controls notifications; `labels.type-*` controls punishment-type labels; `materials.information` changes the inventory information item, and `layout.input-width` changes the Java prompt width. Use the placeholders from the bundled [default theme](../src/main/resources/menus/dashboard.yml); dynamic values are inserted literally, not parsed as MiniMessage. Existing files are retained, with built-in fallback text for missing keys. The Discord verification panel is customized separately. Security logic does not depend on labels.
+
+### Additional command coverage
+
+Guard recognizes sensitive resolved commands for EssentialsX, WorldGuard, CoreProtect, AdvancedBan, LiteBans, LuckPerms and PlugMan. This is command-level policy, not a hook into each plugin's underlying API. The strict allowlist remains optional. Bukkit hanging-entity interactions and bucket filling also pass through player restrictions/budgets. Test existing staff workflows: these commands now require explicit named-profile permission when sensitive-command protection is enabled.

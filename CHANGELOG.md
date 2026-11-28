@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Redesign the colored startup diagnostics, distinguish local readiness from remote connection, and expose requested-but-unavailable integrations.
+- Expand Minecraft dashboard themes, enforce explicit task command allowlists, and recognize sensitive resolved commands for common administration plugins.
+- Recheck signed offline rank mappings against current verification sessions before returning ranks.
 - Add signed task-specific edit grants with cumulative durable quota, immutable asynchronous authorization, exact world and operation scope.
 - Add local Floodgate linking-provider validation, opt-in strict resolved-command allowlist and expanded event enforcement.
 - Add opt-in verification lobby with authenticated return records; all Java and Bedrock clients retain reconnect-safe linking.

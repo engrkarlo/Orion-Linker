@@ -53,3 +53,7 @@ Snapshots include visible player names and UUIDs, textures, ping, server version
 - Bukkit reads happen on the main thread. Network operations and optional saved-skin lookup run on a single worker with no overlapping collections. The bot Push listener is disabled unless its public URL is set.
 
 
+
+## Startup console
+
+The five-section startup summary separates runtime, transport/privacy, local services, optional integrations and final readiness. `READY` means local initialization, not confirmed Discord connectivity; `DEGRADED` means a requested service or required transport is unavailable, and `INACTIVE` means the listener did not start. An installed optional plugin is not proof of a tested integration. Use `ob status`, inspect preceding warnings and check OrionBot's bridge manager for actual connectivity. No credentials are printed. Console `ob verification-off` can also release the startup fallback login restriction until restart.

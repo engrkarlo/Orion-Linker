@@ -38,7 +38,7 @@ final class LuckPermsRoles implements AutoCloseable {
         if(!offlineReconciliation)return "{\"result\":\"DISABLED\"}";
         String[] requested=body.split("\\n",-1);
         if(requested.length<1||requested.length>4||new HashSet<>(Arrays.asList(requested)).size()!=requested.length)throw new IllegalArgumentException("Invalid rank query");
-        Map<String,UUID> ids=new LinkedHashMap<>(),observed=new HashMap<>();
+        Map<String,UUID> ids=new LinkedHashMap<>();
         Set<String> seen=new HashSet<>();
         for(String line:requested){
             String[] fields=line.split("\\|",-1);
@@ -46,10 +46,10 @@ final class LuckPermsRoles implements AutoCloseable {
             if(!SanctionState.validIdentity(id)||!seen.add(id)||fields.length!=1&&fields.length!=3)throw new IllegalArgumentException("Invalid rank identity");
             UUID uuid;
             if(fields.length==3){
-                uuid=observedRankUuid(id,fields[1],fields[2]);if(uuid!=null)observed.put(id,uuid);
+                uuid=observedRankUuid(id,fields[1],fields[2]);
             }else if(id.startsWith("java:")||id.startsWith("bedrock:"))uuid=rankUuid(id);
             else uuid=null;
-            if(uuid!=null)ids.put(id,uuid);
+            if(uuid!=null&&observedSessionMatches(id,uuid))ids.put(id,uuid);
         }
         Map<String,java.util.concurrent.CompletableFuture<String>> queries=new LinkedHashMap<>();
         for(var entry:ids.entrySet()){
@@ -72,7 +72,7 @@ final class LuckPermsRoles implements AutoCloseable {
         List<String> rows=new ArrayList<>();
         for(var e:queries.entrySet())if(e.getValue().isDone()&&!e.getValue().isCompletedExceptionally()){
             String group=e.getValue().getNow(null);
-            if(group!=null&&group.matches("[a-z0-9_-]{1,40}")&&(!observed.containsKey(e.getKey())||observedSessionMatches(e.getKey(),observed.get(e.getKey()))))rows.add(OrionBridge.quote(e.getKey())+":"+OrionBridge.quote(group));
+            if(group!=null&&group.matches("[a-z0-9_-]{1,40}")&&observedSessionMatches(e.getKey(),ids.get(e.getKey())))rows.add(OrionBridge.quote(e.getKey())+":"+OrionBridge.quote(group));
         }
         return "{\"result\":\"OK\",\"groups\":{"+String.join(",",rows)+"}}";
     }
@@ -92,14 +92,15 @@ final class LuckPermsRoles implements AutoCloseable {
             if(authmeRealm.isBlank()||!identity.startsWith("authme:"+authmeRealm+":")||!plugin.getServer().getPluginManager().isPluginEnabled("AuthMe"))return null;
         }else if(identity.startsWith("bedrock:")){
             // A wrong canonical XUID UUID is never eligible as an observed mapping.
-            if(uuid.getMostSignificantBits()==0||!plugin.getServer().getPluginManager().isPluginEnabled("floodgate"))return null;
+            if(uuid.getMostSignificantBits()==0||rankUuid(identity)==null)return null;
         }else return null;
         return observedSessionMatches(identity,uuid)?uuid:null;
     }
     private UUID rankUuid(String id){
         if(id.startsWith("java:")){
             String hex=id.substring(5);
-            return UUID.fromString(hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20));
+            UUID uuid=UUID.fromString(hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20));
+            return uuid.version()==4&&uuid.variant()==2?uuid:null;
         }
         // Never infer an authenticated identity from a name or prefix. The host
         // sends only previously verified matching identity/UUID observations.
@@ -120,7 +121,9 @@ final class LuckPermsRoles implements AutoCloseable {
             Object link=apiType.getMethod("getPlayerLink").invoke(api);
             if(link==null)return false;
             Class<?> type=Class.forName("org.geysermc.floodgate.api.link.PlayerLink",true,loader);
-            if(!Boolean.TRUE.equals(type.getMethod("isEnabled").invoke(link)))return true;
+            Object enabled=type.getMethod("isEnabled").invoke(link);
+            if(Boolean.FALSE.equals(enabled))return true;
+            if(!Boolean.TRUE.equals(enabled))return false;
             if(type.getMethod("getName").invoke(link)==null||!providerSlots.tryAcquire())return false;
             boolean handedOff=false;
             try{
