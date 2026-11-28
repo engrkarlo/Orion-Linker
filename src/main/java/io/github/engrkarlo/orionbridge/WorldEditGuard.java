@@ -27,7 +27,7 @@ final class WorldEditGuard implements AutoCloseable {
             private final AtomicBoolean reported=new AtomicBoolean(),authorized=new AtomicBoolean();
             private boolean permitted(BlockVector3 location,boolean biome,boolean entity){
                 boolean accepted=!guard.protectedEdit(world,location.x(),location.y(),location.z(),biome)
-                    &&(player==null?guard.allowNonPlayerEdits():(!entity||guard.entityEdit(player))&&guard.reserveEdit(player,world,attempted));
+                    &&(player==null?guard.reserveNonPlayerEdit(attempted):(!entity||guard.entityEdit(player))&&guard.scopedEdit(player,world,location.x(),location.y(),location.z(),biome,entity)&&guard.reserveEdit(player,world,attempted));
                 if(!accepted){
                     if(reported.compareAndSet(false,true))guard.rule(player,player==null?null:guard.identity(player),"WORLDEDIT_BLOCKED","WorldEdit "+(entity?"entity":biome?"biome":"block")+" mutation blocked; world="+world+"; position="+location+"; reserved attempts="+attempted.get()+"; prior changes may already exist","WorldEdit/FAWE");
                     return false;

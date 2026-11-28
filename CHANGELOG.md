@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Config v11 adds local world/region/operation/command restrictions for named task profiles, non-player edit budgets and direct entity command denial.
 - Persist individual automatic containment by authenticated identity with independent deadlines and bounded storage.
 - Preserve unexpired linking challenges across client reconnects; discard stale session IDs, confirmations and authorization leases. Avoid opening verification menus before AuthMe authentication and recheck identity on player actions.
 - Deny resolved WorldEdit/FAWE commands when required edit hooks are unavailable; add configurable dashboard heading/icon keys and route formal appeals through the native Discord panel.

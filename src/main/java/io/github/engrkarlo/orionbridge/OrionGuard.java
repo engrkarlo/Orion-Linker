@@ -14,8 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class OrionGuard implements Listener,AutoCloseable {
-    record Profile(Set<String> commands,int editLimit,int minuteLimit,int blocks,boolean staffChat,boolean lockdown,boolean entityTasks){}
-    private static final Profile ORDINARY=new Profile(Set.of(),0,0,0,false,false,false);
+    record Profile(Set<String> commands,int editLimit,int minuteLimit,int blocks,boolean staffChat,boolean lockdown,boolean entityTasks,EditScope scope){}
+    private static final Profile ORDINARY=new Profile(Set.of(),0,0,0,false,false,false,EditScope.unrestricted());
     private static final Set<String> SENSITIVE=Set.of("op","deop","lp","luckperms","permissions","stop","restart","reload","plugman","plugmanx","execute","sudo","give","gamemode","ban","pardon","kill","summon","fill","clone","setblock","place","worldedit","fawe","we");
     private final OrionBridge plugin;
     private final VerificationGate gate;
@@ -35,7 +35,8 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final Map<UUID,Counter> containers=new HashMap<>();
 
     private final Counter joins=new Counter(),entities=new Counter();
-    private final int ordinaryBlocks,joinLimit,entityLimit,containerLimit,containSeconds,lockSeconds;
+    private final int ordinaryBlocks,joinLimit,entityLimit,containerLimit,containSeconds,lockSeconds,nonPlayerOperation,nonPlayerMinute;
+    private static final UUID NON_PLAYER=new UUID(0L,0L);
     private final boolean allowNonPlayerEdits,blockCommands,blockEdits;
     private final org.bukkit.scheduler.BukkitTask cleanup;
     private volatile boolean open=true,worldEditReady=false;
@@ -56,7 +57,7 @@ final class OrionGuard implements Listener,AutoCloseable {
             for(String command:config.getStringList(base+"commands")){
                 String c=command.toLowerCase(Locale.ROOT);if(c.matches("[a-z0-9_.-]+:[a-z0-9_./-]+"))commands.add(c);
             }
-            loaded.put(name,new Profile(Set.copyOf(commands),clamp(config.getInt(base+"worldedit-per-operation"),0,2_000_000),clamp(config.getInt(base+"worldedit-per-minute"),0,4_000_000),clamp(config.getInt(base+"blocks-per-minute"),0,100_000),config.getBoolean(base+"staff-chat"),config.getBoolean(base+"lockdown-bypass"),config.getBoolean(base+"entity-tasks")));
+            loaded.put(name,new Profile(Set.copyOf(commands),clamp(config.getInt(base+"worldedit-per-operation"),0,2_000_000),clamp(config.getInt(base+"worldedit-per-minute"),0,4_000_000),clamp(config.getInt(base+"blocks-per-minute"),0,100_000),config.getBoolean(base+"staff-chat"),config.getBoolean(base+"lockdown-bypass"),config.getBoolean(base+"entity-tasks"),readScope(config,base+"worldedit-scope.")));
         }
         profiles=Map.copyOf(loaded);protectedWorlds=Set.copyOf(config.getStringList("guard.protected-worlds"));
         var regions=config.getMapList("guard.protected-regions");if(regions.size()>32)throw new IllegalArgumentException("Too many protected regions");
@@ -86,6 +87,8 @@ final class OrionGuard implements Listener,AutoCloseable {
         }
         rules=Map.copyOf(configured);
         allowNonPlayerEdits=config.getBoolean("guard.allow-non-player-edits",false);
+        nonPlayerOperation=clamp(config.getInt("guard.non-player-per-operation",10000),0,100000);
+        nonPlayerMinute=clamp(config.getInt("guard.non-player-per-minute",20000),0,200000);
         blockCommands=config.getBoolean("guard.block-sensitive-commands",true);
         blockEdits=config.getBoolean("guard.enforce-worldedit",true);
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
@@ -98,6 +101,21 @@ final class OrionGuard implements Listener,AutoCloseable {
             editBudget.prune(System.nanoTime());
         },200L,200L);
     }
+    private static EditScope readScope(YamlConfiguration cfg,String base){
+        Set<String> worlds=Set.copyOf(cfg.getStringList(base+"worlds")),commands=Set.copyOf(cfg.getStringList(base+"commands"));
+        if(worlds.size()>32||worlds.stream().anyMatch(w->w.isBlank()||w.length()>100)||commands.size()>100||commands.stream().anyMatch(c->!c.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")))throw new IllegalArgumentException("Invalid task profile scope");
+        var operations=EnumSet.noneOf(EditScope.Operation.class);
+        if(!cfg.contains(base+"operations"))operations=EnumSet.allOf(EditScope.Operation.class);
+        else for(String op:cfg.getStringList(base+"operations"))operations.add(EditScope.Operation.valueOf(op.toUpperCase(Locale.ROOT)));
+        var rows=cfg.getMapList(base+"regions");if(rows.size()>32)throw new IllegalArgumentException("Too many task regions");
+        List<EditScope.Region> regions=new ArrayList<>();
+        for(var region:rows){
+            Object w=region.get("world");if(!(w instanceof String world)||world.isBlank()||world.length()>100)throw new IllegalArgumentException("Invalid task region world");
+            int x1=coordinate(region,"x1"),y1=coordinate(region,"y1"),z1=coordinate(region,"z1"),x2=coordinate(region,"x2"),y2=coordinate(region,"y2"),z2=coordinate(region,"z2");
+            regions.add(new EditScope.Region(world,Math.min(x1,x2),Math.min(y1,y2),Math.min(z1,z2),Math.max(x1,x2),Math.max(y1,y2),Math.max(z1,z2)));
+        }
+        return new EditScope(worlds,regions,operations,commands);
+    }
     private static int coordinate(Map<?,?> region,String key){
         Object raw=region.get(key);if(!(raw instanceof Integer n)||Math.abs((long)n)>30000000)throw new IllegalArgumentException("Invalid protected region coordinate "+key);return n;
     }
@@ -109,6 +127,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         return false;
     }
     boolean entityEdit(UUID player){return profile(player).entityTasks();}
+    boolean scopedEdit(UUID player,String world,int x,int y,int z,boolean biome,boolean entity){return profile(player).scope().permits(world,x,y,z,entity?EditScope.Operation.ENTITY:biome?EditScope.Operation.BIOME:EditScope.Operation.BLOCK);}
     private static int clamp(int n,int low,int high){return Math.max(low,Math.min(high,n));}
     boolean open(){return open;}
     void worldEditReady(){worldEditReady=true;}
@@ -176,9 +195,12 @@ final class OrionGuard implements Listener,AutoCloseable {
         boolean edit=owner.equals("worldedit")||owner.equals("fastasyncworldedit")||raw.startsWith("/")||raw.startsWith("worldedit:")||raw.startsWith("fawe:");
         boolean sensitive=edit||SENSITIVE.contains(name)||SENSITIVE.contains(raw.substring(raw.lastIndexOf(':')+1));
         if(edit&&blockEdits&&!worldEditReady){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Guard edit hook unavailable; refusing an edit command until restart");player.sendMessage(Component.text("OrionGuard: edit protection unavailable. Contact staff."));return;}
-        if(!blockCommands||!sensitive)return;
+        // These direct entity operations may bypass the guarded extent. Deny
+        // them while WE protection is on instead of claiming complete coverage.
+        if(edit&&blockEdits&&Set.of("butcher","remove","killall").contains(name)){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Direct entity command denied; no guarded extent guarantee");return;}
+        if(!blockCommands&&!edit||!sensitive)return;
         Profile profile=profile(player.getUniqueId());
-        boolean allowed=resolved!=null&&(edit?profile.editLimit()>0:profile.commands().contains(owner+":"+name));
+        boolean allowed=resolved!=null&&(edit?profile.editLimit()>0&&profile.scope().permitsCommand(owner,name):profile.commands().contains(owner+":"+name));
         if(!allowed){e.setCancelled(true);alert(player,"GUARD_COMMAND_BLOCKED","Blocked sensitive command category "+name+"; resolved owner="+owner);player.sendMessage(Component.text("OrionGuard: this operation requires an approved staff profile."));}
         else alert(player,"TRUSTED_OPERATION","Authorized command category "+name+"; owner="+owner);
     }
@@ -225,6 +247,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     boolean enforceEdits(){return blockEdits;}
     boolean allowNonPlayerEdits(){return allowNonPlayerEdits;}
+    boolean reserveNonPlayerEdit(AtomicInteger used){return open&&worldEditReady&&allowNonPlayerEdits&&!lockdown()&&GuardBudget.operation(used,nonPlayerOperation)&&editBudget.reserve(NON_PLAYER,System.nanoTime(),nonPlayerMinute);}
     boolean reserveEdit(UUID player,String world,AtomicInteger used){
         int max=operationLimit(player,world);
         return GuardBudget.operation(used,max)&&editBudget.reserve(player,System.nanoTime(),profile(player).minuteLimit());
