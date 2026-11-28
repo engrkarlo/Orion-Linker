@@ -1,4 +1,4 @@
-# Configuration reference — v12
+# Configuration reference — v14
 
 The bundled config.yml is the authoritative list of keys. Missing fields migrate with existing values preserved. Restart Paper after changing anything except telemetry connection settings. Keep backups private; they may contain credentials.
 
@@ -54,3 +54,15 @@ Each local `guard.profiles.<name>.worldedit-scope` may restrict `worlds`, inclus
 ## Observed offline ranks (v12)
 
 `roles.offline-observed-identities: false` is the default. Enable it together with Discord Role Sync > Observed ranks only where the server's AuthMe/Floodgate UUID mapping is stable. Signed lookups use the last authenticated linked identity/UUID observation, scoped to this server, for up to 24 hours. AuthMe must use the configured realm and be enabled. Noncanonical Floodgate UUIDs require Floodgate and cannot be confused with a different canonical XUID UUID. A contradictory current session rejects the lookup. External offline remapping is not authoritative or detectable in every deployment; disable this feature when mappings can change externally. Unknown rank results retain existing owned role state until a valid lookup or another explicit policy change.
+
+## Strict command allowlist (v13)
+
+`guard.strict-command-allowlist: false` defaults off. Enable only after listing ordinary commands by resolved `owner:command` in `guard.ordinary-commands`. Unlisted commands require a trusted profile; mandatory authentication and `/ob` recovery commands remain handled separately. Sensitive commands cannot become ordinary merely by listing them. Test aliases and plugin ownership.
+
+## Verification lobby (v14)
+
+`verification.lobby.enabled: false` and `verification.lobby.world: ''` are additive defaults. When enabled use the exact name of a loaded world with safe spawn. Return coordinates are stored under `verification-return/`; never delete a record before safe recovery. Inventory is untouched. See [administration](administration.md#optional-verification-lobby).
+
+## Task authorization storage
+
+Task requests use the existing local named profiles and separate signed, immutable per-task limits. `guard-task-budgets/` stores reserved mutation quotas; preserve the directory. Quotas are conservative after a crash. No temporary task grants unrelated privileges or lockdown bypass.

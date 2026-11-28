@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Add signed task-specific edit grants with cumulative durable quota, immutable asynchronous authorization, exact world and operation scope.
+- Add local Floodgate linking-provider validation, opt-in strict resolved-command allowlist and expanded event enforcement.
+- Add opt-in verification lobby with authenticated return records; all Java and Bedrock clients retain reconnect-safe linking.
+- Reorganize the documentation into installation, player, commands, administration, configuration, troubleshooting and acceptance guides. Config v14 is additive.
 - Add configurable Minecraft dashboard rows, button slots, Java dialog width/columns and Bedrock button images with safe layout fallback.
 - Config v12 adds opt-in bounded observed offline AuthMe/noncanonical Bedrock rank queries, and rechecks authenticated identity before local profile/account authorization.
 - Config v11 adds local world/region/operation/command restrictions for named task profiles, non-player edit budgets and direct entity command denial.

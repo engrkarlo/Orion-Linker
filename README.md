@@ -1,141 +1,47 @@
-# OrionBridge 2.0.0-alpha.7
+# OrionBridge
 
-**Development preview — not a production security release.** Alpha.7 extends the native Pull bridge with verification batching, managed role sync, staff profiles, security observations and containment, moderation, chat, recovery previews, and Java/Bedrock administration interfaces. Alpha.7 adds configurable rule responses, repeat-case duration suggestions, separate verification scheduling, safer managed-role authorization and bounded offline Java rank reconciliation. Test optional integrations on a disposable server before enabling enforcement. OrionBot's matching native implementation is required. See [setup and commands](docs/manual.md), [configuration](docs/configuration.md), and [acceptance tests and limitations](docs/acceptance.md).
+**Connect Minecraft to OrionBot — accounts, moderation, security, ranks, chat and live server status.**
 
-Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge). OrionBot contains the native Discord companion; this repository builds the Minecraft JAR and tests the protocol.
+OrionBridge is the Minecraft-side Paper plugin for OrionBot. Its Discord control center is built into OrionBot itself; no separate extension is needed. A basic Minecraft status panel can still work without OrionBridge.
 
-OrionBridge is an optional Paper 26.3 plugin that lets OrionBot read live Minecraft information, including custom skin textures and performance metrics. Your normal Discord status panels still work without it.
+> Development preview · 2.0.0-alpha.7 · Paper 26.3 / Java 25. The new security code is not production-certified. Complete the matched live acceptance checklist before enabling it on a production server.
 
-## Player account linking
+## Start here
 
-[Player linking guide](docs/player-linking.md) · [All commands and permissions](docs/manual.md#minecraft-commands-and-permissions) · [Discord setup](https://github.com/engrkarlo/OrionBot/blob/orionbridge-2.0-completion/docs/orionbridge.md).
-
-## Requirements
-
-- A running OrionBot installation with a registered Java Minecraft server.
-- Paper 26.3 with Java 25. SkinsRestorer and Floodgate are optional.
-- An OrionBridge JAR built for the target server. Get it from a successful [build workflow](https://github.com/engrkarlo/Orion-Linker/actions/workflows/build.yml), or [build it yourself](#build-from-source).
-- A public HTTPS reverse proxy on either the Minecraft host (Pull) or the bot host (Push).
-
-Use **Pull mode** if your Minecraft Pterodactyl host provides a reverse proxy. You do not need a new port or domain on the Discord bot host.
-
-| Mode | How it connects | Where HTTPS is needed |
-| --- | --- | --- |
-| Pull (default for new installs) | OrionBot requests snapshots from Minecraft | Minecraft hosting |
-| Push | Minecraft sends snapshots to OrionBot | Bot hosting |
-
-## Quick setup: Pull mode
-
-### 1. Set up the Minecraft host
-
-In your Minecraft server's Pterodactyl panel, allocate a spare TCP port, for example `25762`. Create a subdomain and HTTPS reverse proxy pointing to that allocation. Choose a valid SSL certificate (such as Let's Encrypt if offered).
-
-| Reverse proxy field | Example |
+| I want to… | Guide |
 | --- | --- |
-| Domain | `bridge.example.com` |
-| Target | Your Minecraft server's allocated IP and `25762` |
-| SSL | Valid public TLS certificate |
+| Install, update or pair the plugin | [Installation & setup](docs/installation.md) |
+| Link my Minecraft and Discord accounts | [Player guide](docs/player-linking.md) |
+| Find commands and permissions | [Commands & permissions](docs/commands.md) |
+| Manage ranks, staff, punishments and protection | [Administration](docs/administration.md) |
+| Customize settings and menus | [Configuration](docs/configuration.md) |
+| Fix a connection or verification problem | [Troubleshooting](docs/troubleshooting.md) |
+| Run live compatibility and performance checks | [Acceptance](docs/acceptance.md) · [Load testing](docs/load-testing.md) |
 
-Use the domain provided by your own host. DNS alone cannot forward to a port. The plugin serves plain HTTP behind the HTTPS proxy, so restrict direct backend access to the proxy if your host supports this.
+[Full documentation index](docs/README.md) · [OrionBot Discord administration](https://github.com/engrkarlo/OrionBot/blob/orionbridge-2.0-completion/docs/orionbridge.md) · [Changelog](CHANGELOG.md)
 
-### 2. Install and configure the plugin
+## Quick setup
 
-Put the JAR into Minecraft's `plugins/` directory and start Paper once. Open `plugins/OrionBridge/config.yml`:
+1. Install a matching OrionBridge JAR on Paper 26.3 with Java 25. Keep the existing `plugins/OrionBridge/` directory.
+2. On your Minecraft host, allocate a spare port and configure a public HTTPS reverse proxy to that port. Use Pull mode; the bot host does not need a new inbound port.
+3. In `config.yml`, set `mode: pull`, `bind: "0.0.0.0"` and your allocated `port`. Keep the existing token or let the plugin generate one on first start.
+4. In Discord, run `/mcserver manage` → select your Java server → OrionBridge → Configure Pull. Enter the HTTPS origin and token privately.
+5. Test telemetry first. Follow [the security setup](docs/installation.md#enable-identity-and-security) before enabling mandatory verification or other enforcement features.
 
-```yaml
-mode: pull
-bind: "0.0.0.0"
-port: 25762
-endpoint: ""
-token: ""
-interval-seconds: 10
-hide-vanished: true
-respect-listing-preference: true
-skinsrestorer-fallback: true
-```
+## What players do
 
-Set the port to your own allocation. Leave `endpoint` empty in Pull mode. If a token already exists, keep it rather than clearing it unless you intend to rotate it.
+Join the server, authenticate through AuthMe if required, run `/ob link`, enter the private code in the Discord verification panel, then confirm the Discord account in Minecraft. Both Java and Bedrock clients can disconnect and resume an unexpired code. Authentication alone does not unlock gameplay while mandatory Discord verification is active.
 
-Save the file and run `/ob reload` in Minecraft, or `ob reload` in the server console. When the Pull token is blank, OrionBridge generates a secure 64-character token and writes it to the config file. Reopen the file and copy that token privately.
+## Build and compatibility
 
-### 3. Connect OrionBot
-
-In Discord, as a member with Manage Server permission:
-
-1. Run `/mcserver manage` and select the registered Java server.
-2. Open **OrionBridge** → **Configure Pull**.
-3. Enter your HTTPS domain (for example `https://bridge.example.com`), the token from Minecraft's config file, and a polling interval such as 10 seconds.
-4. Save and check that the connection says **Connected**. Use **Test / refresh** if needed.
-
-No `ORION_BRIDGE_*` environment variables are required for Pull. The bot adds `/v1/snapshot` itself. Telemetry polling is on demand during status requests and scheduled panel updates. Enabled security services use a separate bounded Pull polling loop. The proxy must forward the signed v2 GET and POST paths for security features.
-
-### 4. See the results
-
-Click **Performance** on a status card. Regular members can view TPS, MSPT and server ping; Manage Server holders also see JVM heap, average player ping and recent roster changes. Publish a dedicated performance panel in a restricted staff channel if desired. Enable Player avatars in the Minecraft Status Manager to see applied skin heads in the player list.
-
-## Startup and upgrades
-
-The console startup summary credits Karlow and shows the active mode, collection interval, privacy controls and saved-skin availability. It never prints pairing credentials or the remote endpoint. READY means the local session initialized, not that the remote bot has received a snapshot yet. Push delivery backs off on failures, including HTTP 429/503 retry timing; reload and shutdown release the old HTTP client. Existing telemetry settings are preserved; versioned migration adds disabled security settings and saves a backup. Replacing the JAR does not replace an existing `plugins/OrionBridge/config.yml`; retain the data folder and current token.
-
-## Reload and manage tokens
-
-Use `/ob reload` after editing telemetry settings in `config.yml`. Security, correlation and verification settings require a full Paper restart. It requires `orionbridge.reload` (operators by default). Reload validates the settings, restarts the listener/session, and attempts to restore previous settings if the replacement fails. Installing a new JAR still requires a server restart.
-
-For Pull, clear or replace the token in Minecraft's config, reload, reopen the file and update the token in Discord. Disconnecting in Discord removes the bot's configuration but does not invalidate the plugin's token; rotate it on Minecraft to revoke old clients. Never post tokens in Discord or share screenshots that reveal them.
-
-## Troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| No connection | Check proxy target, allocated port, plugin bind address, certificate and token. |
-| Browser receives 404 at the domain root | Expected; there is no website homepage. |
-| Browser receives 401 at `/v1/snapshot` | Expected without a token. A bot 401 means its token does not match. |
-| HTTP 502 | The proxy cannot reach the plugin listener. Check allocation and startup/reload logs. |
-| HTTP 503 | An authenticated Pull request has no fresh snapshot yet. |
-| HTTP 400 / clock errors | Synchronize server clocks and check compatible plugin/bot versions. |
-| Missing custom skin | Check player avatars, backend profile textures and SkinsRestorer storage access. |
-| Missing icon | Check Paper's advertised favicon or set an HTTPS icon in OrionBot. |
-| TPS or MSPT unavailable | Check bridge connection and open Performance rather than the ordinary status card. |
-
-## Alternative setup: Push mode
-
-Use Push when the bot host already has a suitable HTTPS reverse proxy. Update OrionBot, preserve existing data and configure:
-
-```env
-ORION_BRIDGE_PUBLIC_URL=https://bridge.example.com
-ORION_BRIDGE_BIND=127.0.0.1
-ORION_BRIDGE_PORT=8787
-```
-
-Forward only POST requests to `/v1/snapshot/*` to the bot receiver on port 8787. If using a URL prefix, strip it at the proxy. Set a 1 MiB body limit and rate limits; do not log Authorization headers. If both processes share a host and network namespace, the public URL may instead use `http://127.0.0.1:8787`. In a separate container, choose an appropriate allocated bind address; do not expose the plaintext listener to the public internet.
-
-Restart the bot. In `/mcserver manage` → server → OrionBridge, choose **Create Push pairing**. Copy the one-time endpoint and token, set `mode: push` in Minecraft's config, paste both values and run `/ob reload`. Do not use the Pull-generated token in Push mode.
-
-Existing Push installations without a mode field retain Push when an endpoint is configured. Creating a new pairing invalidates the old Push token. In both modes, pairings are tied to the registered server and Discord guild.
-
-## Privacy, skins and telemetry
-
-OrionBridge reads server data; it does not run remote console commands or change player skins. It excludes players with `orionbridge.hide`, common vanished metadata (when enabled) and players who disallow listing (when enabled). The visible count follows the same filters. Other vanish plugins may need the hide permission; public API fallback may report different counts.
-
-Skin lookup prefers the current Paper profile's Mojang texture ID. If missing, the optional SkinsRestorer saved-skin lookup runs off-thread, then the bot can fall back to its existing Floodgate/Geyser or Java public skin lookup. Saved skins can differ from temporary live skins. Bedrock textures that are only client-side are not necessarily exposed by Paper. MCHeads renders the texture; provider availability and caching still matter.
-
-Snapshots include visible player names and UUIDs, textures, ping, server version and MOTD, TPS, average MSPT, JVM heap used/max and the advertised icon. Recent joins/leaves are inferred from consecutive snapshots, not an event history. The external server ping in Discord is a separate public protocol measurement, not the bridge HTTP latency.
-
-## Security and technical limits
-
-- Pull uses HTTPS domains on port 443 with public IPv4 DNS resolution, pinned destination addresses and no redirects. The bot encrypts Pull tokens using `data/orionbridge.key` (mode 0600 on Unix). Protect and back up this key alongside the database. Push stores only a token hash.
-- The Minecraft listener serves authenticated snapshots and opt-in separately signed security endpoints; credentials are checked before returning data. The plugin does not log the token. Use HTTPS for remote connections; restrict access to plaintext backend ports.
-- Snapshots expire after 90 seconds; the public status API is used if live bridge data cannot be obtained. Payloads are capped at 1 MiB, visible rosters at 2,000 entries, and timestamp skew at two minutes. Plugin collection interval: 5–30 seconds; bot Pull polling minimum interval: 5–60 seconds.
-- Bukkit reads happen on the main thread. Network operations and optional saved-skin lookup run on a single worker with no overlapping collections. The bot Push listener is disabled unless its public URL is set.
-
-## Build from source
-
-From this repository root with JDK 25 and Maven 3.9+:
+Use JDK 25 and Maven 3.9+ at this repository root:
 
 ```sh
-mvn -B -f pom.xml clean verify
+mvn -B clean verify
 ```
 
-Output: `target/OrionBridge-2.0.0-alpha.7.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
+The configured output is `target/OrionBridge-2.0.0-alpha.7.jar`. Use a successful [build workflow](https://github.com/engrkarlo/Orion-Linker/actions/workflows/build.yml), not an unverified artifact. The [acceptance checklist](docs/acceptance.md) distinguishes supported paths from unverified or unsupported integrations.
 
-[OrionBot host project](https://github.com/engrkarlo/OrionBot)
+Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge).
+
+Created by **Karlow**.

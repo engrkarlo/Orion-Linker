@@ -1,9 +1,11 @@
-# OrionBridge alpha.7 — operator manual
+# OrionBridge — operator manual (compatibility index)
+
+For the organized, maintained guides, start at [the documentation index](README.md): [installation](installation.md), [commands and permissions](commands.md), [administration](administration.md), [troubleshooting](troubleshooting.md). The original sections below are retained for existing links.
 
 Players: [link your account](player-linking.md).
 
 ## Installation
-Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v12 adds missing fields and makes a backup; security changes require a full restart.
+Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v14 adds missing fields and makes a backup; security changes require a full restart.
 
 ## Pull pairing
 Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid public certificate. Configure mode: pull, bind and allocated port. Copy the generated existing token privately into /mcserver manage > server > OrionBridge > Configure Pull. Keep the existing pairing on upgrade. Allow signed v2 GET/POST requests through the same proxy. No inbound port or proxy on the bot host. Push remains legacy telemetry only.
