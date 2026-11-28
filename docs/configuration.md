@@ -1,31 +1,47 @@
-# Configuration reference — v14
+# Configuration reference — v15
 
-The bundled config.yml is the authoritative list of keys. Missing fields migrate with existing values preserved. Restart Paper after changing anything except telemetry connection settings. Keep backups private; they may contain credentials.
+The first startup creates the following files in plugins/OrionBridge. Read the comments directly above each option: they explain what enabling it does, prerequisites, limits and common examples. New optional features default off. The root config.yml contains connection and telemetry only; the section name inside each feature file is unchanged.
 
-| Section | Fields and behavior |
+| File | Purpose |
 | --- | --- |
-| Root | mode (pull/push), bind, port, endpoint, token, interval-seconds; hide-vanished, respect-listing-preference, skinsrestorer-fallback. Keep existing token. |
-| audit | enabled, guild-id, server-id, signing-key, block-changes-per-minute. Separate key from telemetry token. |
-| control | enabled, signing-key. Typed signed actions only; uses audit scope. |
-| verification | enabled, setup-complete, java-interface (DIALOG or INVENTORY), discord-invite, lease-seconds, reopen-seconds, authme-realm. Empty AuthMe realm does not authorize offline Java identity. Use same realm only for the same trusted account database. |
-| correlation | enabled, confirm-real-client-addresses, guild-key. Enable only when real authenticated addresses are available. Never use shared proxy addresses. |
-| guard | enabled, block-sensitive-commands, enforce-worldedit, allow-non-player-edits, block-changes-per-minute, container-items-per-minute, entities-per-10-seconds, joins-per-10-seconds, join-lockdown-seconds, containment-seconds, protected-worlds. Zero join lockdown disables that automatic lockdown. |
-| guard.profiles | commands (exact resolved names), worldedit-per-operation, worldedit-per-minute, blocks-per-minute, staff-chat, lockdown-bypass, entity-tasks. Profiles grant no Bukkit permissions. |
-| roles | enabled, allowed-groups, allowed-permissions. Exact allowlists; dangerous, unknown and wildcard permissions refused. |
-| chat | enabled, minecraft-to-discord, discord-to-minecraft, staff-chat. Configure matching channels in OrionBot. |
-| recovery | enabled, allow-rollback (false by default), maximum-records, maximum-radius, maximum-seconds. Bounded previews; execution separately opted in. |
+| config.yml | Connection mode, bind, allocated port, endpoint, token, telemetry interval and roster privacy. |
+| config/audit.yml | Signed activity/evidence, guild/server IDs and audit signing key. |
+| config/control.yml | Signed actions and its separate control key. Required for verification and chat. |
+| config/verification.yml | Account linking, login gate, AuthMe realm, Java interface and optional lobby. |
+| config/correlation.yml | Optional pseudonymous network evidence; real client addresses required. |
+| config/guard.yml | Guard enforcement, rules, limits, protected areas and trusted profiles. |
+| config/roles.yml | LuckPerms group and permission allowlists and offline rank reconciliation. |
+| config/chat.yml | Public two-way chat and optional private staff chat. |
+| config/recovery.yml | CoreProtect lookup and separately approved rollback. |
 
-The verification UI has a configurable interface; dashboard theme values reside in menus/dashboard.yml. Use the packaged example. Not every UI label is configurable in this preview.
+## Upgrade and reload
+
+Stop Paper, back up the complete plugin folder, and replace the JAR. A legacy root config (v1–14) is automatically split; its exact original is saved as config.yml.v<version>.*.bak. Existing values, keys, custom profile names, unknown root options and data directories are retained. The root version is written last; interrupted migration can reuse identical feature files. If a category conflicts, neither existing file is overwritten: compare both copies and resolve the conflict before restarting. Once v15 is installed, a missing category or duplicated legacy category in the root is an error, not an invitation to regenerate defaults. Keep the entire config/ and menus/ directories in backups. Existing v1 themes are backed up and upgraded additively to v2, preserving custom values. Missing menu files are generated even when verification is off.
+
+Use /ob reload for root connection settings only; restart Paper for every feature/menu change. A missing/corrupt configuration can cause a temporary join restriction rather than silently turning security off. Console ob verification-off is the emergency release until restart. Do not change version numbers manually.
+
+## Menu appearance
+
+- menus/java-dialogs.yml: native Java verification screens, button captions, columns and widths; also the text fallback.
+- menus/java-inventory.yml: Java verification chest menu, item materials, size and slots.
+- menus/bedrock-forms.yml: Bedrock verification forms, captions and optional texture paths.
+- menus/dashboard.yml: shared post-verification player and staff account menus, reports, appeals, punishments and diagnostics; Java dialog/inventory layout and Bedrock icons.
+
+Use MiniMessage and retain dynamic placeholders, especially the private verification code and claimant identity. A theme only changes appearance, never authorization.
+
+## Cross-platform chat
+
+Finish Pull pairing and signed control first, test verification, and enable the matching verification feature in OrionBot. In config/chat.yml set chat.enabled: true, then decide which direction(s) to allow. Minecraft-to-Discord relays eligible chat as MC · Player; Discord-to-Minecraft displays [Discord] Name to verified players. Set the Minecraft chat channel in OrionBot > Identity & Security > Channels, enable chat, grant channel access and enable Message Content Intent. Staff chat additionally requires the private staff destination, Guard and a trusted profile with staff-chat: true. Keep public and staff channels separate. Restart Paper. The relay is not a durable transcript; queued chat can expire during congestion.
 
 ## Data and transport
-Retain config.yml, the entire audit and sanctions directories, and menu files. Back up OrionBot SQLite and encryption keys together. Keys are scoped to guild/server. Security endpoints are available through Pull: events, acknowledge, actions, verification and batch, policy, chat, recovery and health. Legacy /v1/snapshot remains compatible. No arbitrary remote console commands. Configure HTTPS, request size/rate limits and restrict plaintext backend access.
+Retain config.yml, config/, the entire audit and sanctions directories, and menu files. Back up OrionBot SQLite and encryption keys together. Keys are scoped to guild/server. Security endpoints are available through Pull: events, acknowledge, actions, verification and batch, policy, chat, recovery and health. Legacy /v1/snapshot remains compatible. No arbitrary remote console commands. Configure HTTPS, request size/rate limits and restrict plaintext backend access.
 
 ## Guard deployment
 Start with enforcement disabled. Test with a linked administrator and ordinary player; allow only exact necessary commands. Protected worlds are hard-deny for guarded edits. Edit limits are attempted changes, not a guarantee of successful block counts. Non-player edits and alternate plugin/API paths need separate review. Lockdown is not a substitute for backups or server permissions.
 
 ## Rule responses (config v10)
 
-For each of GUARD_COMMAND_BLOCKED, WORLDEDIT_BLOCKED, GUARD_BLOCK_LIMIT, CONTAINER_ACTIVITY, JOIN_SPIKE, ENTITY_SPIKE and EXPLOSION_ACTIVITY, set guard.rules.<KIND>.enabled, severity (LOW/MEDIUM/HIGH/CRITICAL), response, duration-seconds (5–3600) and cooldown-seconds (1–3600). Responses: ALERT, BUILD_RESTRICTION, WORLDEDIT_RESTRICTION, COMMAND_RESTRICTION, FREEZE, QUARANTINE; LOCKDOWN only for JOIN_SPIKE. Unattributed entity events are alert-only. Unknown actors are never assigned individual containment. Rule switches control additional response and evidence, not the independent hard command/edit/block budgets. Defaults: suspicious commands/edits and observational rules alert; block-budget violation quarantines; JOIN_SPIKE inherits the existing join-lockdown-seconds setting (0 = alert only). Omitted durations inherit containment-seconds or join-lockdown-seconds. These short local restrictions are session-process state, not durable moderation cases, and a restart clears them. Use a centrally approved durable case for persistence.
+For each of GUARD_COMMAND_BLOCKED, WORLDEDIT_BLOCKED, GUARD_BLOCK_LIMIT, CONTAINER_ACTIVITY, JOIN_SPIKE, ENTITY_SPIKE and EXPLOSION_ACTIVITY, set guard.rules.<KIND>.enabled, severity (LOW/MEDIUM/HIGH/CRITICAL), response, duration-seconds (5–3600) and cooldown-seconds (1–3600). Responses: ALERT, BUILD_RESTRICTION, WORLDEDIT_RESTRICTION, COMMAND_RESTRICTION, FREEZE, QUARANTINE; LOCKDOWN only for JOIN_SPIKE. Unattributed entity events are alert-only. Unknown actors are never assigned individual containment. Rule switches control additional response and evidence, not the independent hard command/edit/block budgets. Defaults: suspicious commands/edits and observational rules alert; block-budget violation quarantines; JOIN_SPIKE inherits the existing join-lockdown-seconds setting (0 = alert only). Omitted durations inherit containment-seconds or join-lockdown-seconds. These short local restrictions are stored locally with absolute deadlines; they are not centrally approved durable moderation cases. Use a centrally approved durable case for persistence.
 
 Example:
 ```yaml
@@ -49,7 +65,7 @@ Optional guard.protected-regions is a list of up to 32 inclusive cuboids. Exampl
 
 ## Scoped task profiles (config v11)
 
-Each local `guard.profiles.<name>.worldedit-scope` may restrict `worlds`, inclusive `regions` (world, x1,y1,z1,x2,y2,z2), `operations` (BLOCK, BIOME, ENTITY) and resolved `commands` (`worldedit:set`, etc.). Empty world/region/command lists mean no additional restriction; an explicitly empty operations list denies all extent mutations. Both region and world restrictions apply when set. Biome writes must fit the entire 4×4×4 cell. Global protected worlds/regions always win. A temporary profile selected and independently approved in Discord inherits these limits and existing operation/minute ceilings; it does not override Bukkit permissions. Use separate named profiles for specific jobs. Direct WE entity removal commands are denied when extent enforcement is on because they may bypass the guarded extent. Enabled non-player edits have separate bounded operation/minute budgets and are blocked during lockdown. Direct API writes and untested FAWE paths remain outside guarantees.
+Each local `guard.profiles.<name>.worldedit-scope` may restrict `worlds`, inclusive `regions` (world, x1,y1,z1,x2,y2,z2), `operations` (BLOCK, BIOME, ENTITY) and resolved `commands` (`worldedit:set`, etc.). Empty world/region lists mean no additional restriction; an empty command list denies temporary-task commands (permanent profiles may be unrestricted); an explicitly empty operations list denies all extent mutations. Both region and world restrictions apply when set. Biome writes must fit the entire 4×4×4 cell. Global protected worlds/regions always win. A temporary profile selected and independently approved in Discord inherits these limits and existing operation/minute ceilings; it does not override Bukkit permissions. Use separate named profiles for specific jobs. Direct WE entity removal commands are denied when extent enforcement is on because they may bypass the guarded extent. Enabled non-player edits have separate bounded operation/minute budgets and are blocked during lockdown. Direct API writes and untested FAWE paths remain outside guarantees.
 
 ## Observed offline ranks (v12)
 

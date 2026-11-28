@@ -201,7 +201,7 @@ public final class OrionBridge extends JavaPlugin {
     private static boolean verifyRequested(YamlConfiguration cfg){return cfg!=null&&cfg.getBoolean("verification.enabled")&&cfg.getBoolean("verification.setup-complete");}
 
     private static String safeError(Exception e){
-        return e instanceof IllegalArgumentException?e.getMessage():"Unable to read configuration or bind the listener";
+        return e instanceof CategoryConfig.LayoutException||e instanceof IllegalArgumentException?e.getMessage():"Unable to read configuration or bind the listener";
     }
 
     private Settings readSettings() throws Exception {

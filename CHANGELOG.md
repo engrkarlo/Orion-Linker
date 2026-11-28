@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Configuration v15: separate eight feature categories into config/, retain legacy settings and private backup, verify output before atomic replacement, reject migration conflicts and missing category files.
+- Human-friendly feature comments and menu theme v2 guidance; preserve custom menu values, create all menus even while verification is disabled. Update operator documentation and setup instructions.
 - Final source inspection: restore missing immutable edit authorization type, reduce redundant LuckPerms transient node replacements, move bounded storage pruning off the main thread, optimize replay nonce expiry and enlarge the bounded verification batch payload. Large task quotas reserve up to 1024 attempts per durable write.
 - Redesign the colored startup diagnostics, distinguish local readiness from remote connection, and expose requested-but-unavailable integrations.
 - Expand Minecraft dashboard themes, enforce explicit task command allowlists, and recognize sensitive resolved commands for common administration plugins.

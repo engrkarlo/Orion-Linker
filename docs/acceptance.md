@@ -6,7 +6,7 @@ This development preview includes implementation and regression tests, not produ
 
 ## Live acceptance checklist
 
-- Upgrade from custom config v5/v9/v12 with preserved token, menus and data. Verify migration to v14, backup, restart and matched restore.
+- Upgrade from custom config v5/v9/v12 with preserved token, menus and data. Verify migration to v15, category values, backup, restart and matched restore. Test interrupted migration, conflict rejection, missing v15 category, fresh install, and existing menu theme preservation.
 - Link Java online, offline Java after AuthMe and Floodgate Bedrock. Test disconnect before claim, offline Discord claim, reconnect before/after expiry, Java and Bedrock client crashes, Minecraft/bot restart, explicit regeneration, wrong account, replay and session replacement. Confirm AuthMe login alone cannot unlock movement.
 - Test optional lobby with valid and unavailable spawn, reconnect, return to safe loaded location, cancelled teleport, missing world and no inventory changes. Leave disabled unless accepted.
 - Exercise explicit temporary edit command allowlists, resolved EssentialsX/WorldGuard/CoreProtect/AdvancedBan/LiteBans/LuckPerms/PlugMan commands, hanging entities and bucket filling, strict command allowlist, protected cuboids, biome cell boundaries, concurrent FAWE edits, staff task world/operation/local region/total quota, restart after a partial quota reservation, approval replacement, revocation, sanction and expiry. Test missing/disabled hook and supported direct entity commands. Do not claim coverage for arbitrary direct writes.

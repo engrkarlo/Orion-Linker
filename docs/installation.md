@@ -3,7 +3,7 @@
 [Documentation index](README.md) · [Commands](commands.md) · [Configuration](configuration.md)
 
 ## Installation
-Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v14 adds missing fields and makes a backup; security changes require a full restart.
+Paper 26.3 and Java 25; matching native OrionBot alpha.7 development branch (Node 22). Install one OrionBridge JAR and retain the entire existing plugins/OrionBridge directory. Stop the server for upgrades. Back up plugin data, OrionBot data, and both encryption/signing keys. Do not delete the database or existing token. On startup config v15 separates feature settings into config/ and backs up the original; security changes require a full restart.
 
 ## Pull pairing
 Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid public certificate. Configure mode: pull, bind and allocated port. Copy the generated existing token privately into /mcserver manage > server > OrionBridge > Configure Pull. Keep the existing pairing on upgrade. Allow signed v2 GET/POST requests through the same proxy. No inbound port or proxy on the bot host. Push remains legacy telemetry only.
@@ -12,7 +12,7 @@ Use an allocated Minecraft-host port and an HTTPS reverse proxy with a valid pub
 1. Verify telemetry first. Keep the existing Pull token. In Discord choose Identity & Security > setup; copy the server/guild IDs and private signing keys into audit and control configuration. Never expose the keys. Enable those sections and restart Paper.
 2. Configure private security/punishment channels, staff roles and verification channel. Test evidence and a short reversible sanction. Enable verification only once the correct authenticated identity provider and an independent staff recovery path are tested.
 3. Publish the verification panel. In Minecraft link with a short-lived private code; confirm the Discord identity in Minecraft. One account per guild per identity. No OP bypass.
-4. Configure optional Guard profiles on Minecraft, map the matching Discord roles in Trusted Operations, and test limits on disposable blocks. Configure each supported rule's response, duration, severity and cooldown in config.yml. Hard safety limits remain independent. Staff profiles relax only explicitly configured checks; they do not grant Bukkit permissions.
+4. Configure optional Guard profiles on Minecraft, map the matching Discord roles in Trusted Operations, and test limits on disposable blocks. Configure each supported rule's response, duration, severity and cooldown in config/guard.yml. Hard safety limits remain independent. Staff profiles relax only explicitly configured checks; they do not grant Bukkit permissions.
 5. For LuckPerms role sync, first allow the exact harmless group and permission names locally, then map groups/roles in Discord. Test that manual grants remain. Verified Java and matching unlinked Floodgate UUID observations support bounded offline primary-group lookup; AuthMe and noncanonical Bedrock mappings may additionally use opt-in server-specific observations up to 24 hours old; unsupported or externally remapped identities still require authenticated login. See [configuration](configuration.md). Discord managed roles must have no guild permissions and be below the bot.
 6. Enable chat locally and in the bot, with a private staff channel for staff chat. Confirm Message Content intent and channel access. Never route private staff chat to a public channel.
 7. CoreProtect recovery: enable lookup first. Execution is separately opt-in, requires lockdown, an offline target, a fresh unchanged preview, and independent Discord approval. Test on a copy of the world. A submitted rollback is not proof of restoration.
@@ -84,7 +84,7 @@ Click **Performance** on a status card. Regular members can view TPS, MSPT and s
 
 ## Startup and upgrades
 
-The console startup summary credits Karlow and shows the active mode, collection interval, privacy controls and saved-skin availability. It never prints pairing credentials or the remote endpoint. READY means the local session initialized, not that the remote bot has received a snapshot yet. Push delivery backs off on failures, including HTTP 429/503 retry timing; reload and shutdown release the old HTTP client. Existing telemetry settings are preserved; config v14 migration adds missing defaults and saves a backup. Keep the Guard state, task budgets and verification return records. Replacing the JAR does not replace an existing `plugins/OrionBridge/config.yml`; retain the data folder and current token.
+The console startup summary credits Karlow and shows the active mode, collection interval, privacy controls and saved-skin availability. It never prints pairing credentials or the remote endpoint. READY means the local session initialized, not that the remote bot has received a snapshot yet. Push delivery backs off on failures, including HTTP 429/503 retry timing; reload and shutdown release the old HTTP client. Existing telemetry settings are preserved; config v15 migration preserves values in separate feature files and saves a backup. Keep the Guard state, task budgets and verification return records. Replacing the JAR does not replace an existing `plugins/OrionBridge/config.yml`; retain the data folder and current token.
 
 ## Reload and manage tokens
 
@@ -110,3 +110,5 @@ Restart the bot. In `/mcserver manage` → server → OrionBridge, choose **Crea
 Existing Push installations without a mode field retain Push when an endpoint is configured. Creating a new pairing invalidates the old Push token. In both modes, pairings are tied to the registered server and Discord guild.
 
 
+
+For security setup, paste the audit, control and correlation credentials into their matching files under `config/` rather than into the root. See [configuration reference](configuration.md) for the exact file layout.

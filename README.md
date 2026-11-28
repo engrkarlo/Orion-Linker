@@ -45,3 +45,7 @@ The configured output is `target/OrionBridge-2.0.0-alpha.7.jar`. Use a successfu
 Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge).
 
 Created by **Karlow**.
+
+### Configuration layout
+
+`config.yml` is for connection/telemetry. Feature settings are in `config/` (audit, control, verification, correlation, guard, roles, chat, recovery); menu themes are in `menus/`. On upgrade v15 automatically splits your existing root configuration and retains your settings and credentials. Read the [configuration guide](docs/configuration.md) before enabling security or chat.
