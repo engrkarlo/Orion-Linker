@@ -69,6 +69,7 @@ final class PairingCredentials {
     }
     static void provision(Path dir,SetupRequest.Credentials c)throws Exception{
         var y=read(dir);verify(y,c);
+        if(c.guild().equals(y.getString("audit.guild-id"))&&c.server().equals(y.getString("audit.server-id"))&&c.audit().equals(y.getString("audit.signing-key"))&&c.control().equals(y.getString("control.signing-key"))&&c.network().equals(y.getString("correlation.guild-key")))return;
         y.set("audit.guild-id",c.guild());y.set("audit.server-id",c.server());y.set("audit.signing-key",c.audit());y.set("control.signing-key",c.control());y.set("correlation.guild-key",c.network());save(dir,y);
     }
 }

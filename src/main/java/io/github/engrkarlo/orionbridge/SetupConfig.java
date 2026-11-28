@@ -8,7 +8,12 @@ import org.bukkit.configuration.file.YamlConfiguration;
  * Recovery is idempotent; existing non-empty keys and scopes can never be replaced. */
 final class SetupConfig {
     private SetupConfig(){}
-    private static Path journal(Path dir){return dir.resolve("setup-pending.yml");}
+    private static Path journal(Path dir){return dir.resolve("internal/setup-pending.yml");}
+    private static Path existingJournal(Path dir)throws IOException{
+        Path old=dir.resolve("setup-pending.yml"),next=journal(dir);
+        if(Files.exists(old,LinkOption.NOFOLLOW_LINKS)&&Files.exists(next,LinkOption.NOFOLLOW_LINKS))throw new IOException("Conflicting setup recovery journals");
+        return Files.exists(old,LinkOption.NOFOLLOW_LINKS)?old:next;
+    }
     private record Plan(YamlConfiguration audit,YamlConfiguration control,YamlConfiguration correlation,YamlConfiguration credentials){}
     private static Plan plan(Path dir,SetupRequest.Credentials c)throws Exception{
         var a=CategoryConfig.read(dir.resolve("config/audit.yml"));
@@ -20,7 +25,7 @@ final class SetupConfig {
     static void provision(Path dir,SetupRequest.Credentials c)throws Exception{provision(dir,c,false);}
     static void provision(Path dir,SetupRequest.Credentials c,boolean autoRealm)throws Exception{
         PairingCredentials.migrate(dir);
-        if(Files.exists(journal(dir),LinkOption.NOFOLLOW_LINKS))throw new IOException("An approved setup is already pending; reload to recover it");
+        if(Files.exists(existingJournal(dir),LinkOption.NOFOLLOW_LINKS))throw new IOException("An approved setup is already pending; reload to recover it");
         var root=CategoryConfig.readRoot(dir);
         if(!"pull".equals(root.getString("mode"))||!c.distinct(PairingCredentials.read(dir).getString("token","")))throw new IOException("Setup requires Pull and distinct credentials");
         var p=plan(dir,c);
@@ -48,7 +53,7 @@ final class SetupConfig {
                 return java.util.Map.of("chat",chat);
             }
             case "LINK"->{
-                if(autoRealm)v.set("verification.authme-realm",AuthMeRealm.forSetup(v.getString("verification.authme-realm",""),server,true,true));
+                if(autoRealm&&v.getBoolean("verification.auto-authme-realm",true))v.set("verification.authme-realm",AuthMeRealm.forSetup(v.getString("verification.authme-realm",""),server,true,true));
                 if(!active){v.set("verification.enabled",true);v.set("verification.setup-complete",true);v.set("verification.force",false);}
                 if(v.getBoolean("verification.lobby.enabled")&&!v.getBoolean("verification.force",true))throw new IOException("Disable the verification lobby before enabling optional linking");
                 return java.util.Map.of("verification",v);
@@ -70,8 +75,9 @@ final class SetupConfig {
         }
     }
     static void recover(Path dir)throws Exception{
-        if(Files.notExists(journal(dir),LinkOption.NOFOLLOW_LINKS))return;
-        var j=CategoryConfig.read(journal(dir));
+        Path pending=existingJournal(dir);
+        if(Files.notExists(pending,LinkOption.NOFOLLOW_LINKS))return;
+        var j=CategoryConfig.read(pending);
         var c=new SetupRequest.Credentials(j.getString("guild",""),j.getString("server",""),j.getString("actor",""),j.getString("audit",""),j.getString("control",""),j.getString("network",""),j.getString("feature","CREDENTIALS"));
         var root=CategoryConfig.readRoot(dir);
         if(!"pull".equals(root.getString("mode"))||!c.distinct(PairingCredentials.read(dir).getString("token","")))throw new IOException("Pending setup no longer matches connection");
@@ -89,6 +95,6 @@ final class SetupConfig {
                 CategoryConfig.backup(file,"setup");CategoryConfig.save(file,e.getValue());
             }
         }
-        Files.delete(journal(dir));
+        Files.delete(pending);
     }
 }

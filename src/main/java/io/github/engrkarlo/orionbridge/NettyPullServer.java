@@ -78,7 +78,7 @@ final class NettyPullServer implements AutoCloseable {
                 busy=true;
                 if(!request.decoderResult().isSuccess()){http(ctx,400,new byte[0],null);return;}
                 if(request.uri().equals("/v3/socket")){
-                    if(!request.method().equals(HttpMethod.GET)||!authorized(request.headers().get(HttpHeaderNames.AUTHORIZATION))){http(ctx,401,new byte[0],null);return;}
+                    if(!request.method().equals(HttpMethod.GET)||request.headers().getAll(HttpHeaderNames.AUTHORIZATION).size()!=1||!authorized(request.headers().get(HttpHeaderNames.AUTHORIZATION))){http(ctx,401,new byte[0],null);return;}
                     if(!"orionbridge.v3".equals(request.headers().get(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL))||!socket.compareAndSet(null,ctx.channel())){http(ctx,409,new byte[0],null);return;}
                     var handshaker=new WebSocketServerHandshakerFactory("ws://localhost/v3/socket","orionbridge.v3",false,BridgeWire.MAX_FRAME).newHandshaker(request);
                     if(handshaker==null){socket.compareAndSet(ctx.channel(),null);http(ctx,426,new byte[0],null);return;}
@@ -86,6 +86,7 @@ final class NettyPullServer implements AutoCloseable {
                     return;
                 }
                 try{
+                    if(!request.uri().startsWith("/")||request.uri().startsWith("//")||request.headers().getAll(HttpHeaderNames.AUTHORIZATION).size()!=1){http(ctx,400,new byte[0],null);return;}
                     Headers headers=new Headers();
                     for(var entry:request.headers())headers.add(entry.getKey(),entry.getValue());
                     byte[] body=new byte[request.content().readableBytes()];request.content().getBytes(request.content().readerIndex(),body);

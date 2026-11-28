@@ -33,6 +33,7 @@ final class SetupRequest {
     SetupRequest(){file=null;}
     SetupRequest(java.nio.file.Path file)throws java.io.IOException{
         this.file=file;
+        if(java.nio.file.Files.isSymbolicLink(file.getParent()))throw new java.io.IOException("Invalid private setup directory");
         if(java.nio.file.Files.notExists(file,java.nio.file.LinkOption.NOFOLLOW_LINKS))return;
         if(!java.nio.file.Files.isRegularFile(file,java.nio.file.LinkOption.NOFOLLOW_LINKS)||java.nio.file.Files.size(file)>8192)throw new java.io.IOException("Invalid private setup state");
         var p=new java.util.Properties();
@@ -91,10 +92,11 @@ final class SetupRequest {
         if((bootstrap?parts.length!=9:parts.length!=7&&parts.length!=8)||parts[0].length()!=32||!MessageDigest.isEqual(codeHash.getBytes(StandardCharsets.US_ASCII),hash(parts[0]).getBytes(StandardCharsets.US_ASCII)))return null;
         Credentials creds;
         try{creds=new Credentials(parts[1],parts[2],parts[3],parts[4],parts[5],parts[6],parts.length>=8?parts[7]:"CREDENTIALS");}catch(IllegalArgumentException e){return null;}
-        if(!creds.distinct(token)||bootstrap&&(!creds.feature().equals("CREDENTIALS")||!parts[8].matches("[a-f0-9]{64}")||parts[8].equals(token)))return null;
+        if(!creds.distinct(token)||bootstrap&&(!creds.feature().equals("CREDENTIALS")||!parts[8].matches("[a-f0-9]{64}")||parts[8].equals(token)||!creds.distinct(parts[8])))return null;
         if(pending!=null){return bootstrap&&pending.claimHash()!=null&&pending.credentials().equals(creds)&&pending.claimHash().equals(hash(parts[8]))?pending:null;}
         if(!bootstrap)codeHash=null;tokenHash=hash(token);
-        pending=new Pending(secret(8),creds,expires,bootstrap?hash(parts[8]):null);
+        String claimHash=bootstrap?hash(parts[8]):null;
+        pending=new Pending(bootstrap?claimHash.substring(0,16):secret(8),creds,expires,claimHash);
         persist();return pending;
     }
     synchronized Pending peek(long now){if(now>=expires){if(expires!=0)cancelPending();return null;}return pending;}

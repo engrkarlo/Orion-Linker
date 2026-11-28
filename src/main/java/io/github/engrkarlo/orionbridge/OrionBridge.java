@@ -104,6 +104,7 @@ public final class OrionBridge extends JavaPlugin {
             setup=new SetupRequest(getDataFolder().toPath().resolve("internal/setup.properties"));
             var appearance=loadAppearance();setAppearance(appearance);
             Settings settings=readSettings(cfg,true);
+            validateDependencies(cfg,settings);
             initialize(cfg,settings,null,false);
             activeConfig=cfg;
             refreshOnline();
@@ -347,7 +348,7 @@ public final class OrionBridge extends JavaPlugin {
         if(port<1||port>65535||seconds<5||seconds>30)throw new IllegalArgumentException("Invalid port or interval (5–30 seconds)");
         String token=cfg.getString("token","").trim();
         if(mode.equals("pull")&&token.isEmpty()){
-            if(!generateToken)throw new IllegalArgumentException("Restore your existing pairing token before reload");
+            if(!generateToken||cfg.getBoolean("credentials-managed",false))throw new IllegalArgumentException("Restore your existing private pairing token from backup");
             byte[] secret=new byte[32];new SecureRandom().nextBytes(secret);
             token=HexFormat.of().formatHex(secret);PairingCredentials.putToken(getDataFolder().toPath(),token);cfg.set("token",token);cfg.set("credentials-managed",true);
             getLogger().info("Generated a private pairing credential. Use ob setup to connect OrionBot.");
@@ -379,10 +380,10 @@ public final class OrionBridge extends JavaPlugin {
 
     void setupCommand(org.bukkit.command.CommandSender sender,String[] args){
         if(!(sender instanceof org.bukkit.command.ConsoleCommandSender))return;
-        if(args.length==2&&args[1].equalsIgnoreCase("cancel")){setup.cancel();messages.send(sender,"setup.cancelled");return;}
+        if(args.length==2&&args[1].equalsIgnoreCase("cancel")){try{setup.cancel();messages.send(sender,"setup.cancelled");}catch(java.io.UncheckedIOException e){messages.send(sender,"setup.failed");}return;}
         if(session==null||session.pull==null){messages.send(sender,"setup.unavailable");return;}
         long now=System.currentTimeMillis();
-        if(args.length==1){messages.send(sender,"setup.code","code",setup.open(now,session.settings.token()));return;}
+        if(args.length==1){try{messages.send(sender,"setup.code","code",setup.open(now,session.settings.token()));}catch(java.io.UncheckedIOException e){messages.send(sender,"setup.failed");}return;}
         if(args.length==2&&args[1].equalsIgnoreCase("status")){
             var request=setup.peek(now);
             if(request==null){messages.send(sender,"setup.none");return;}

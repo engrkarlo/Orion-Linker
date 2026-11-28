@@ -31,6 +31,7 @@ verification:
   # Leave blank until guided setup; online Java and Floodgate do not need a realm.
   # Never rename a realm after accounts have linked. Share an explicit realm only
   # across servers using the same trusted AuthMe database and account namespace.
+  auto-authme-realm: true
   authme-realm: ''
   lobby:
     # Optional: move restricted players to a loaded safe spawn, remember their

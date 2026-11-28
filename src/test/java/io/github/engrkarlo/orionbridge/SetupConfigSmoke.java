@@ -27,7 +27,7 @@ public final class SetupConfigSmoke {
             put(dir.resolve("config/audit.yml"),"audit.signing-key","d".repeat(64));
             try{PairingCredentials.migrate(dir);throw new AssertionError("overwrote private credential");}catch(java.io.IOException expected){}
             put(dir.resolve("config/audit.yml"),"audit.signing-key","");
-            check(!Files.exists(dir.resolve("setup-pending.yml")));
+            check(!Files.exists(dir.resolve("setup-pending.yml")));check(!Files.exists(dir.resolve("internal/setup-pending.yml")));
             SetupConfig.recover(dir);
         }finally{try(var files=Files.walk(dir)){for(Path p:files.sorted(java.util.Comparator.reverseOrder()).toList())Files.deleteIfExists(p);}}
         System.out.println("SetupConfigSmoke passed");
