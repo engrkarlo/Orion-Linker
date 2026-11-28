@@ -1,0 +1,37 @@
+theme-version: 1
+title: '<light_purple>OrionBridge</light_purple> | <white>Account verification</white>'
+screens:
+  welcome: '<white>Welcome! Link your Discord account before playing.</white><newline><gray>Join our Discord: <invite></gray>'
+  authenticate: '<white>Authenticate your Minecraft account first.</white><newline><gray>Then refresh to start verification.</gray>'
+  waiting: '<white>Requesting your private verification code…</white><newline><gray>OrionBot will deliver it shortly.</gray>'
+  code: '<white>Enter this private code in the Discord verification panel:</white><newline><light_purple><code></light_purple><newline><gray>Never share it with another player.</gray>'
+  confirm: '<white>Confirm that this Discord account is yours:</white><newline><light_purple><discord></light_purple><newline><gray>ID: <discord_id></gray>'
+  pending: '<white>Confirmation received. Waiting for OrionBot to finish linking.</white>'
+  verified: '<green>Account verified.</green><newline><white>Discord ID: <discord_id></white>'
+buttons:
+  link:
+    name: '<white>Link Discord Account</white>'
+    material: TRIPWIRE_HOOK
+    image: 'textures/items/trip_wire_source'
+  refresh:
+    name: '<white>Refresh</white>'
+    material: CLOCK
+    image: 'textures/items/clock_item'
+  regenerate:
+    name: '<white>Generate New Code</white>'
+    material: PAPER
+    image: 'textures/items/paper'
+  confirm:
+    name: '<white>Confirm Account</white>'
+    material: EMERALD
+    image: 'textures/items/emerald'
+  close:
+    name: '<white>Close</white>'
+    material: BARRIER
+    image: ''
+size: 27
+information-slot: 13
+information-material: BOOK
+primary-slot: 11
+secondary-slot: 15
+filler-material: BLACK_STAINED_GLASS_PANE
