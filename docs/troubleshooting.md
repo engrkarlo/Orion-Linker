@@ -61,3 +61,10 @@ The five-section startup summary separates runtime, transport/privacy, local ser
 If v15 migration reports a conflict, preserve the original and existing category file. Compare their values, move the conflicting category aside only after backing it up, and restart to migrate the original root. Reapply any intended changes to the new file afterwards. For a missing v15 category, restore the file from backup; do not reset signing keys or downgrade the version by hand. Console `ob verification-off` can temporarily release the configuration-error join restriction.
 
 If /ob reload reports busy, retry when the current signed work finishes. If the previous runtime was restored, fix the edited YAML before retrying; the plugin does not silently rewrite your changes. A failed rollback restricts joins and requires console recovery; restore a known-good configuration first. Cosmetic changes do not restart services. New JARs still require a server restart.
+
+## Setup and transport
+
+- Expired code: run `ob setup` again. Cancel an old pending Discord request if necessary.
+- Pending setup is not active: confirm the displayed requester locally, approve, then click Check setup. If the plugin reports busy, run `ob reload` once idle.
+- HTTP works but WebSocket does not: check proxy Upgrade handling and idle timeouts. The bot can use authenticated HTTPS without an additional allocation. Use `transport: HTTP` if the new listener itself cannot start.
+- Wrong credentials: do not delete keys or existing identities. Restore matching backups or use the legacy private credential recovery instructions.

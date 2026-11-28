@@ -1,15 +1,15 @@
 # Configuration reference — v15
 
-**Setting up for the first time?** Follow the [complete step-by-step configuration guide](configuration-setup.md) for every file, credential source and Discord dashboard action.
+**New installation?** Start with the [quickstart](installation.md). Normally only the allocated port needs editing. Keep the advanced files for explicit security policy and appearance.
 
 The first startup creates the following files in plugins/OrionBridge. Read the comments directly above each option: they explain what enabling it does, prerequisites, limits and common examples. New optional features default off. The root config.yml contains connection and telemetry only; the section name inside each feature file is unchanged.
 
 | File | Purpose |
 | --- | --- |
-| config.yml | Connection mode, bind, allocated port, endpoint, token, telemetry interval and roster privacy. |
+| config.yml | Connection mode, transport (AUTO/HTTP/WEBSOCKET), bind, allocated port, managed token, telemetry and privacy. |
 | config/audit.yml | Signed activity/evidence, guild/server IDs and audit signing key. |
 | config/control.yml | Signed actions and its separate control key. Required for verification and chat. |
-| config/verification.yml | Account linking, login gate, AuthMe realm, Java interface and optional lobby. |
+| config/verification.yml | Optional account linking, independently required login gate, AuthMe realm, Java interface and optional lobby. |
 | config/correlation.yml | Optional pseudonymous network evidence; real client addresses required. |
 | config/guard.yml | Guard enforcement, rules, limits, protected areas and trusted profiles. |
 | config/roles.yml | LuckPerms group and permission allowlists and offline rank reconciliation. |
@@ -86,3 +86,7 @@ Each local `guard.profiles.<name>.worldedit-scope` may restrict `worlds`, inclus
 ## Task authorization storage
 
 Task requests use the existing local named profiles and separate signed, immutable per-task limits. `guard-task-budgets/` stores reserved mutation quotas; preserve the directory. Quotas are conservative after a crash. No temporary task grants unrelated privileges or lockdown bypass.
+
+## Setup-managed settings
+
+The private setup process fills missing audit/control/network credentials and activates requested services. It journals approved changes, makes per-file backups and rejects mismatched existing credentials. Do not edit IDs or secrets unless intentionally recovering an existing pairing. Never delete the data folder to reset setup. `verification.force` defaults to true for existing configurations; the new optional-linking wizard writes false explicitly. `chat.require-link` defaults to true, and forced verification always overrides public unlinked chat. Private staff chat remains authorization-only. Both settings are additive; existing security policies and custom values are retained. The `transport: AUTO` listener accepts WebSocket and authenticated HTTP on the same port. `WEBSOCKET` requires that listener but still accepts authenticated HTTPS compatibility traffic. `HTTP` uses the original listener.

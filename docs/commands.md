@@ -35,6 +35,10 @@ There is no OP bypass of mandatory verification. A staff profile relaxes only Or
 
 | Command | Purpose |
 | --- | --- |
+| `ob setup` | Open a five-minute private setup request |
+| `ob setup status` | Inspect requester and requested feature |
+| `ob setup approve <id>` | Approve the matching pending request |
+| `ob setup cancel` | Cancel setup and revoke pending claim |
 | `ob status` | Diagnose initialized services |
 | `ob reload` | reloads all configuration, messages and menus|
 | `ob lockdown <minutes or off>` | Set (1–60 minutes) or clear durable Guard lockdown |
@@ -46,7 +50,8 @@ Use the server console rather than a player command when testing emergency recov
 
 | Command | Access |
 | --- | --- |
-| `/mcserver manage` | Manage Server; pair Java server and configure bridge |
+| `/orionbridge setup` | Manage Server; guided pairing and setup |
+| `/mcserver manage` | Manage Server; register Java server or manage legacy pairing |
 | `/orionbridge manage` | Manage Server; native security manager |
 | `/orionbridge account` | Guild member; view own linked account |
 | `/diagnostics` | OrionBot operator; bot health |

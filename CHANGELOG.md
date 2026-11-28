@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 2.0.0-alpha.8 — simple setup preview
+
+- Add private, console-approved pairing with short-lived codes and scoped credentials; no manual key exchange on matching builds.
+- Add journaled credential and feature provisioning with conflict rejection and backup.
+- Separate optional account linking from forced verification; preserve required linking on upgrades and maintain signed leases, no OP bypass, and local sanctions.
+- Permit explicitly unlinked public chat without granting staff privileges.
+- Add a same-allocation WebSocket listener with authenticated HTTP compatibility, shared signed handlers, bounded buffers/workers, event hints and replay protection.
+- Add guided feature activation, rank discovery and signed readiness status; keep advanced safety rules and recovery controls.
+- Simplify setup documentation and add provisioning, framing and localhost transport checks.
+
+The full Java 25 build and matched live acceptance remain release gates.
+
+## 2.0.0-alpha.7
 - Add a complete step-by-step configuration setup guide with every feature file, credential origins, Discord mapping examples, troubleshooting and safe rollout order; correct token rotation and reload documentation.
 - Full guarded /ob reload for connection, all feature files, messages and menus; retain live sessions for cosmetic changes and preserve Guard state/challenges across compatible runtime rebuilds. Reject busy signed work and roll back failed initialization.
 - Add configurable styled /ob help [command], permission-aware completion, private confirmation ID suggestions, and YAML-driven player messages, chat, menu presentation and startup console colors.
