@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0-alpha.6 (development preview)
+- Config v9 migration preserves existing settings and credentials; new enforcement modules opt in.
+- Bounded verification batches, shared identity resolution, mutable event counters, incremental sanction indexing and task timings.
+- Linked staff profiles, temporary leases, command checks, WorldEdit operation/minute budgets, LuckPerms permission observations and local containment.
+- Managed transient LuckPerms groups, public/private chat, privacy-aware activity events, and additional moderation types.
+- Player and staff dashboards, report/appeal requests, CoreProtect preview and separately enabled recovery execution.
+- Matching native OrionBot branch adds role mappings, identity recovery, incident grouping/notes, network match alerts, Discord sanctions and cross-platform receipts.
+- This is not a security certification. See the acceptance checklist before use.
+
 ## 2.0.0-alpha.5
 - Discord companion integrated directly into OrionBot's Minecraft Status Manager, preserving existing Pull pairing and interaction IDs. No extension package is required or built.
 - OrionBot automatically migrates legacy extension SQLite data and credentials into its native data directory; original data retained. See OrionBot's native setup guide.

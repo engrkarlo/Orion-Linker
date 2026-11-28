@@ -1,4 +1,6 @@
-# Development history — through alpha.5
+# Development history — through alpha.6
+
+Alpha.6 extends the original foundation. The earlier entries below are historical and do not describe the current feature set. Refer to [the manual](manual.md), [configuration](configuration.md) and [remaining acceptance gates](acceptance.md).
 
 The sections below describe successive implementation stages. Alpha.4 includes the experimental host extension; earlier statements about missing host wiring describe earlier stages.
 
