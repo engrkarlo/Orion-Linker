@@ -21,6 +21,7 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final VerificationState state=new VerificationState();
     private final AuthenticatedIdentity identities;
     private final VerificationMenus menus;
+    private final VerificationLobby lobby;
     private final String invite;
     private final long lease;
     private final int reopenSeconds;
@@ -52,6 +53,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         this.plugin=plugin;identities=plugin.identities();
         invite=cfg.getString("verification.discord-invite","");lease=Math.max(15,Math.min(60,cfg.getInt("verification.lease-seconds",60)))*1000L;
         reopenSeconds=Math.max(0,Math.min(300,cfg.getInt("verification.reopen-seconds",15)));
+        lobby=new VerificationLobby(plugin,cfg);
         menus=new VerificationMenus(plugin,cfg);
         for(Player p:plugin.getServer().getOnlinePlayers())state.join(p.getUniqueId(),identities.resolve(p));
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
@@ -77,6 +79,9 @@ final class VerificationGate implements Listener,AutoCloseable {
             if(!lastShown.containsKey(p.getUniqueId()))p.sendMessage(Component.text("Authenticate with the server first. OrionBridge verification follows; gameplay remains restricted."));
             lastShown.put(p.getUniqueId(),now);return;
         }
+        if(s.verified(now)){
+            if(!lobby.restore(p,s.identity()))p.sendMessage(Component.text("Your saved return location is unavailable. Contact staff or run /ob return when the location is safe and loaded."));
+        }else lobby.enter(p,s.identity());
         lastShown.put(p.getUniqueId(),now);
         menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis()))show(p);},()->{if(same(p,s))p.closeInventory();});
     }
@@ -90,6 +95,10 @@ final class VerificationGate implements Listener,AutoCloseable {
         }
         if(identity==null&&args.length==1&&args[0].equalsIgnoreCase("link")){
             p.sendMessage(Component.text("Authenticate with the server first, then run /ob link. Gameplay remains restricted."));return true;
+        }
+        if(args.length==1&&args[0].equalsIgnoreCase("return")){
+            if(restricted(p)){p.sendMessage(Component.text("Complete verification before returning."));return true;}
+            p.sendMessage(Component.text(lobby.restore(p,identity)?"Return complete or no saved location.":"Saved return unavailable. Contact staff."));return true;
         }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){
@@ -210,12 +219,12 @@ final class VerificationGate implements Listener,AutoCloseable {
         return resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
     @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e){if(restricted(e.getPlayer()))plugin.getServer().getScheduler().runTask(plugin,()->show(e.getPlayer()));}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(restricted(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);
     }
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void teleport(PlayerTeleportEvent e){if(restricted(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void teleport(PlayerTeleportEvent e){if(restricted(e.getPlayer())&&!lobby.allowed(e))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void breakBlock(BlockBreakEvent e){if(restricted(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void placeBlock(BlockPlaceEvent e){if(restricted(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void empty(PlayerBucketEmptyEvent e){if(restricted(e.getPlayer()))e.setCancelled(true);}
