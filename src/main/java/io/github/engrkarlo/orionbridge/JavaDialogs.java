@@ -35,15 +35,16 @@ final class JavaDialogs {
             return true;
         }catch(RuntimeException|LinkageError e){plugin.getLogger().warning("Java dialog unavailable: "+e.getClass().getSimpleName());return false;}
     }
-    static boolean input(Player p,OrionBridge plugin,Component title,Component label,Component submit,Component cancel,int width,Consumer<String> callback){
+    static boolean input(Player p,OrionBridge plugin,Component title,Component label,Component submit,Component cancel,int width,Consumer<String> callback){return input(p,plugin,title,label,submit,cancel,width,100,callback);}
+    static boolean input(Player p,OrionBridge plugin,Component title,Component label,Component submit,Component cancel,int width,int buttonWidth,Consumer<String> callback){
         try{
             var input=DialogInput.text("answer",width,label,true,"",255,null);
-            var yes=ActionButton.create(submit,null,100,DialogAction.customClick((view,audience)->{
+            var yes=ActionButton.create(submit,null,buttonWidth,DialogAction.customClick((view,audience)->{
                 if(audience instanceof Player viewer&&viewer.getUniqueId().equals(p.getUniqueId())&&view!=null){String answer=view.getText("answer");if(answer!=null)plugin.main(()->callback.accept(answer));}
             },options()));
             p.closeInventory();p.showDialog(Dialog.create(builder->builder.empty()
                 .base(DialogBase.builder(title).inputs(List.of(input)).build())
-                .type(DialogType.confirmation(yes,ActionButton.create(cancel,null,100,null)))));
+                .type(DialogType.confirmation(yes,ActionButton.create(cancel,null,buttonWidth,null)))));
             return true;
         }catch(RuntimeException|LinkageError e){plugin.getLogger().warning("Java input dialog unavailable: "+e.getClass().getSimpleName());return false;}
     }

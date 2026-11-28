@@ -21,11 +21,14 @@ final class LocalModeration implements Listener,AutoCloseable {
     private final AuthenticatedIdentity identities;
     private final Map<UUID,String> online=new ConcurrentHashMap<>();
     private final AtomicBoolean open=new AtomicBoolean(true);
+    private final java.util.concurrent.atomic.AtomicInteger pendingEffects=new java.util.concurrent.atomic.AtomicInteger();
+    boolean pendingEffects(){return pendingEffects.get()>0;}
+    void enforceOnlineBans(){for(Player p:List.copyOf(plugin.getServer().getOnlinePlayers()))try{if(p.isOnline())notifyBan(p);}catch(RuntimeException ignored){}}
     private final org.bukkit.scheduler.BukkitTask refresh;
     LocalModeration(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
         this.plugin=plugin;identities=plugin.identities();
         state=new SanctionState(plugin.getDataFolder().toPath().resolve("sanctions").resolve(cfg.getString("audit.guild-id")).resolve(cfg.getString("audit.server-id")));
-        for(Player p:plugin.getServer().getOnlinePlayers()){track(p);notifyBan(p);}
+        for(Player p:plugin.getServer().getOnlinePlayers())track(p);
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
         refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{for(Player player:plugin.getServer().getOnlinePlayers()){String before=online.get(player.getUniqueId());track(player);if(!Objects.equals(before,online.get(player.getUniqueId())))notifyBan(player);}},20L,20L);
     }
@@ -35,8 +38,8 @@ final class LocalModeration implements Listener,AutoCloseable {
         if(!open.get())return "CLOSED";
         boolean newCase=state.revision(c.id())<c.revision();
         String result=state.apply(c,System.currentTimeMillis());
-        if(result.equals("PERSISTED"))try{plugin.getServer().getScheduler().runTask(plugin,()->{
-            if(!open.get())return;
+        if(result.equals("PERSISTED")){pendingEffects.incrementAndGet();try{plugin.getServer().getScheduler().runTask(plugin,()->{
+            try{if(!open.get())return;
             for(Player p:plugin.getServer().getOnlinePlayers())if(c.identity().equals(online.get(p.getUniqueId()))){
                 if(newCase&&!c.revoked()&&c.active(System.currentTimeMillis())){
                     if(c.kind()==SanctionState.Kind.KICK){p.kick(plugin.messages().render("moderation.kick","reason",c.reason(),"case_id",c.id().toString()));continue;}
@@ -44,7 +47,8 @@ final class LocalModeration implements Listener,AutoCloseable {
                 }
                 notifyBan(p);
             }
-        });}catch(RuntimeException ignored){/* The persisted sanction is checked on the next event/login. */}
+            }finally{pendingEffects.decrementAndGet();}
+        });}catch(RuntimeException ignored){pendingEffects.decrementAndGet();/* The persisted sanction is checked on the next event/login. */}}
         return result;
     }
     String identity(UUID player){return online.get(player);}

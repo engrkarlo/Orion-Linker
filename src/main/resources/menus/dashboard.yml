@@ -33,6 +33,11 @@ labels:
   type-build-restriction: Build restriction
   type-worldedit-restriction: WorldEdit restriction
   type-temp-ban: Temporary ban
+  type-permanent-ban: Permanent ban
+  type-command-restriction: Command restriction
+  type-role-suspension: Role suspension
+  type-kick: Kick
+  type-discord-timeout: Discord timeout
 
 # Optional. Existing custom menu files are not overwritten; missing keys use defaults.
 headings:
@@ -86,6 +91,7 @@ layout:
   dialog-columns: 2
   dialog-button-width: 150
   input-width: 240
+  input-button-width: 100
   input-placeholder: ''
   italic-items: false
   # Java chest rows (3–6); slots start at 0. Empty button-slots = automatic placement.
@@ -94,6 +100,14 @@ layout:
   button-slots: []
 # Bedrock form button image paths, using the same keys as labels.
 images: {}
+# Optional Java hover text using the same keys as labels (e.g. account).
+tooltips: {}
+# Display words for status and missing values.
+states:
+  active: Active
+  inactive: Inactive
+  none: None
+  unavailable: Unavailable
 
 # Dynamic values are inserted as literal text, never interpreted as MiniMessage tags.
 bodies:

@@ -18,6 +18,7 @@ final class PullHttp implements AutoCloseable {
     private volatile Snapshot latest;
     private final RequestAdmission admission=new RequestAdmission();
     boolean quiesce(){return admission.quiesce();}
+    void resume(){admission.resume();}
     private record Snapshot(byte[] json,long sentAt){}
     PullHttp(String bind,int port,String token,AuditEndpoint audit,ControlEndpoint control) throws IOException {
         authorization=("Bearer "+token).getBytes(StandardCharsets.UTF_8);

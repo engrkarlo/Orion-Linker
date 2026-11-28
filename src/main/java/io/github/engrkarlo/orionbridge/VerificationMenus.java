@@ -60,7 +60,7 @@ final class VerificationMenus implements Listener,AutoCloseable {
         }else if(edition==Bedrock.Detection.JAVA){
             if(!inventoryFirst){
                 Screen sc=screen(dialogs,s,invite,request,refresh,confirm,close);
-                if(JavaDialogs.show(p,plugin,sc.title(),sc.body(),null,sc.actions().stream().map(a->new JavaDialogs.Button(label(dialogs,a,s,invite),null)).toList(),Math.max(1,Math.min(2,dialogs.getInt("columns",1))),Math.max(50,Math.min(300,dialogs.getInt("button-width",160))),-1,i->{if(open&&i>=0&&i<sc.actions().size())sc.actions().get(i).run();}))return;
+                if(JavaDialogs.show(p,plugin,sc.title(),sc.body(),null,sc.actions().stream().map(a->new JavaDialogs.Button(label(dialogs,a,s,invite),dialogs.getString("buttons."+a.label()+".tooltip","").isBlank()?null:formatted(dialogs,"buttons."+a.label()+".tooltip","",s,invite))).toList(),Math.max(1,Math.min(2,dialogs.getInt("columns",1))),Math.max(50,Math.min(300,dialogs.getInt("button-width",160))),-1,i->{if(open&&i>=0&&i<sc.actions().size())sc.actions().get(i).run();}))return;
             }
             try{showInventory(p,s,invite,request,refresh,confirm,close);return;}catch(RuntimeException|LinkageError ignored){}
         }

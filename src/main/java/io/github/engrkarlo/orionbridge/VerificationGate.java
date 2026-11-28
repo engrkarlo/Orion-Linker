@@ -21,7 +21,8 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final VerificationState state;
     VerificationState reloadState(){return state.forReload(System.currentTimeMillis());}
     private final AuthenticatedIdentity identities;
-    private final VerificationMenus menus;
+    private VerificationMenus menus;
+    void replaceMenus(VerificationMenus next){menus.close();menus=Objects.requireNonNull(next);}
     private final VerificationLobby lobby;
     private final String invite;
     private final long lease;
@@ -82,7 +83,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         var current=state.get(p.getUniqueId());
         return active&&p.isOnline()&&current!=null&&Objects.equals(current.identity(),identities.fresh(p))&&current.session().equals(old.session())&&Objects.equals(current.request(),old.request())&&Objects.equals(current.claimant(),old.claimant());
     }
-    void refreshAfterReload(){for(Player p:plugin.getServer().getOnlinePlayers())if(restricted(p))show(p);}
+    void refreshAfterReload(){for(Player p:plugin.getServer().getOnlinePlayers())if(p.isOnline()&&restricted(p))try{show(p);}catch(RuntimeException|LinkageError e){plugin.getLogger().warning("Verification menu could not reopen; /ob link remains available.");}}
     private void show(Player p){
         if(!active||!p.isOnline())return;
         var s=state.expireChallenge(p.getUniqueId(),System.currentTimeMillis());if(s==null)return;

@@ -97,6 +97,7 @@ public final class OrionBridge extends JavaPlugin {
             Settings settings=readSettings(cfg,true);
             initialize(cfg,settings,null,false);
             activeConfig=cfg;
+            refreshOnline();
         }
         catch(Exception|LinkageError e){failed=true;getLogger().warning("Bridge startup incomplete: "+safeError(e)+". Check configuration files.");if(verification==null&&(startupConfig==null||verifyRequested(startupConfig)))installVerificationFallback();}
         startupBanner(startupConfig,failed,started);
@@ -137,6 +138,7 @@ public final class OrionBridge extends JavaPlugin {
             if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
             if(settings.mode().equals("pull")&&cfg.getBoolean("recovery.enabled",false))try{recovery=new CoreProtectRecovery(this,cfg);}catch(ReflectiveOperationException|RuntimeException e){if(strict)throw e;getLogger().warning("CoreProtect recovery unavailable; check plugin API.");}
             dashboards=new DashboardMenus(this,cfg);
+            if(strict&&settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled")&&roles==null)throw new IllegalArgumentException("Rank synchronization requires LuckPerms");
             if(strict&&verifyRequested(cfg)&&control==null)throw new IllegalArgumentException("Verification requires signed control in Pull mode");
             if(strict&&cfg.getBoolean("chat.enabled")&&(chat==null||control==null))throw new IllegalArgumentException("Chat requires active verification and signed control");
             startSession(settings);
@@ -152,22 +154,28 @@ public final class OrionBridge extends JavaPlugin {
         try{
             next=CategoryConfig.load(this);appearance=loadAppearance();settings=readSettings(next,previousSettings==null);
         }catch(Exception|LinkageError e){getLogger().warning("Configuration not applied: "+safeError(e));return ReloadResult.UNCHANGED;}
+        if(previous!=null&&session!=null&&verificationFallback==null&&(!verifyRequested(previous)||verification!=null)&&CategoryConfig.same(previous,next)){
+            // Only presentation changed; keep sessions, leases, HTTP and queues.
+            try{reloadAppearance(next,appearance);return ReloadResult.APPLIED;}
+            catch(Exception|LinkageError failure){getLogger().warning("Appearance reload rejected: "+safeError(failure));return ReloadResult.UNCHANGED;}
+        }
         // Quiesce signed requests before closing their stores. Do not wait for
         // workers that may themselves be waiting for the Minecraft main thread.
         Session current=session;
         if(current!=null&&current.pull!=null&&!current.pull.quiesce())return ReloadResult.BUSY;
+        if(moderation!=null&&moderation.pendingEffects()){if(current!=null&&current.pull!=null)current.pull.resume();return ReloadResult.BUSY;}
         VerificationState challenges=verification==null?null:verification.reloadState();
         boolean compatible=sameIdentityScope(previous,next);
         try{
             stopServices();setAppearance(appearance);initialize(next,settings,compatible?challenges:null,true);
-            activeConfig=next;clearFallback();if(verification!=null)verification.refreshAfterReload();
+            activeConfig=next;clearFallback();refreshOnline();
             return ReloadResult.APPLIED;
         }catch(Exception|LinkageError failure){
             getLogger().warning("Reload failed: "+safeError(failure)+"; restoring the previous runtime.");
             stopServices();
             if(previous!=null&&previousSettings!=null)try{
                 setAppearance(previousAppearance);initialize(previous,previousSettings,challenges,true);
-                activeConfig=previous;clearFallback();if(verification!=null)verification.refreshAfterReload();return ReloadResult.RESTORED;
+                activeConfig=previous;clearFallback();refreshOnline();return ReloadResult.RESTORED;
             }catch(Exception|LinkageError rollback){getLogger().severe("Previous runtime could not be restored: "+safeError(rollback));stopServices();}
             if(!previousAppearance.isEmpty())setAppearance(previousAppearance);
             activeConfig=null;installVerificationFallback();
@@ -175,6 +183,29 @@ public final class OrionBridge extends JavaPlugin {
             for(Player player:java.util.List.copyOf(getServer().getOnlinePlayers()))player.kick(messages.render("verification.configuration-unavailable"));
             return ReloadResult.FAILED;
         }
+    }
+    private void refreshOnline(){
+        if(moderation!=null)moderation.enforceOnlineBans();
+        if(verification!=null)verification.refreshAfterReload();
+    }
+    private void reloadAppearance(YamlConfiguration config,java.util.Map<String,YamlConfiguration> appearance)throws Exception{
+        var oldAppearance=themes;DashboardMenus nextDashboard=null;VerificationMenus nextVerification=null;
+        try{
+            setAppearance(appearance);
+            nextDashboard=new DashboardMenus(this,config);
+            if(verification!=null)nextVerification=new VerificationMenus(this,config);
+        }catch(Exception|LinkageError e){
+            if(nextDashboard!=null)nextDashboard.close();if(nextVerification!=null)nextVerification.close();
+            setAppearance(oldAppearance);throw e;
+        }
+        closeMenus();
+        if(dashboards!=null)dashboards.close();dashboards=nextDashboard;
+        if(verification!=null)verification.replaceMenus(nextVerification);
+        activeConfig=config;
+        if(verification!=null)verification.refreshAfterReload();
+    }
+    private void closeMenus(){
+        for(Player player:getServer().getOnlinePlayers())if(VerificationMenus.owns(player.getOpenInventory().getTopInventory())||DashboardMenus.owns(player.getOpenInventory().getTopInventory()))player.closeInventory();
     }
     private void clearFallback(){if(verificationFallback!=null){org.bukkit.event.HandlerList.unregisterAll(verificationFallback);verificationFallback=null;}}
     private void installVerificationFallback(){
@@ -288,16 +319,6 @@ public final class OrionBridge extends JavaPlugin {
         return new Settings(mode,endpoint,bind,port,token,seconds,cfg.getBoolean("hide-vanished",true),cfg.getBoolean("respect-listing-preference",true),cfg.getBoolean("skinsrestorer-fallback",true));
     }
 
-    private void apply(Settings next) throws Exception {
-        Settings previous=session==null?null:session.settings;
-        stopSession();
-        try {startSession(next);}
-        catch(Exception e){
-            if(previous!=null)try{startSession(previous);}catch(Exception rollback){getLogger().warning("Previous bridge settings could not be restored.");}
-            throw e;
-        }
-    }
-
     private void startSession(Settings settings) throws java.io.IOException {
         StoredSkins skins=null;
         if(settings.savedSkins()){
@@ -325,6 +346,7 @@ public final class OrionBridge extends JavaPlugin {
         boolean released=verificationFallback!=null||verification!=null;
         clearFallback();
         if(verification!=null){verification.close();verification=null;}
+        if(roles!=null)roles.close();
         return released;
     }
     static boolean validEndpoint(URI uri) {
@@ -464,7 +486,7 @@ public final class OrionBridge extends JavaPlugin {
 
     private void stopServices(){
         stopSession();
-        for(Player player:getServer().getOnlinePlayers())if(VerificationMenus.owns(player.getOpenInventory().getTopInventory())||DashboardMenus.owns(player.getOpenInventory().getTopInventory()))player.closeInventory();
+        closeMenus();
         if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}finally{worldEditGuard=null;}
         if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}finally{luckPermsAudit=null;}
         if(dashboards!=null){dashboards.close();dashboards=null;}

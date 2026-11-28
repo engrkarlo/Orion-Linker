@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Local read-only dashboards and audited staff requests; Discord owns approval. */
 final class DashboardMenus implements Listener,AutoCloseable {
-    private record Entry(String name,Material material,Runnable action,UUID head,String image){Entry(String name,Material material,Runnable action,UUID head){this(name,material,action,head,"");}}
+    private record Entry(Component name,Material material,Runnable action,UUID head,String image,Component tooltip){}
     private final OrionBridge plugin;
     private final YamlConfiguration theme;
     private final MiniMessage mm=MiniMessage.miniMessage();
@@ -33,6 +33,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
     }
     private boolean verified(Player p){return open&&p.isOnline()&&plugin.verification()!=null&&plugin.verification().authorized(p.getUniqueId());}
     private boolean admin(Player p){return verified(p)&&p.hasPermission("orionbridge.admin.gui")&&plugin.guard()!=null&&plugin.guard().profile(p.getUniqueId()).lockdown();}
+    private String state(boolean enabled){return theme.getString(enabled?"states.active":"states.inactive",Boolean.toString(enabled));}
     private String label(String key,String fallback){return theme.getString("labels."+key,fallback);}
     private Component component(String value){try{return mm.deserialize(value);}catch(RuntimeException e){return Component.text(value);}}
     private Component title(String title){String key=title.toLowerCase(Locale.ROOT).replace(' ','-');return component(theme.getString("title-prefix","<light_purple>OrionBridge</light_purple> <gray>·</gray> <white>")).append(component(theme.getString("headings."+key,title)));}
@@ -46,18 +47,19 @@ final class DashboardMenus implements Listener,AutoCloseable {
     }
     private void message(Player p,String key,String fallback){p.sendMessage(themed("messages."+key,fallback));}
     private Material material(String key,Material fallback){String value=theme.getString("materials."+key);Material m=value==null?null:Material.matchMaterial(value);return m!=null&&m.isItem()&&!m.isAir()?m:fallback;}
-    private Entry button(String key,String fallback,Material material,Runnable run){String value=theme.getString("materials."+key);Material selected=value==null?null:Material.matchMaterial(value);return new Entry(label(key,fallback),selected!=null&&selected.isItem()&&!selected.isAir()?selected:material,run,null,theme.getString("images."+key,""));}
+    private Entry button(String key,String fallback,Material material,Runnable run){return entry(key,component(label(key,fallback)),material,run,null);}
+    private Entry entry(String key,Component name,Material fallback,Runnable run,UUID head){String tooltip=theme.getString("tooltips."+key,"");return new Entry(name,material(key,fallback),run,head,theme.getString("images."+key,""),tooltip.isBlank()?null:component(tooltip));}
     void account(Player p){
         if(!verified(p)){message(p,"verify-first","Verify first using /ob link.");return;}
         var s=plugin.verification().session(p.getUniqueId());
-        String group=plugin.roles()==null?"Unavailable":plugin.roles().primary(p.getUniqueId());
+        String group=plugin.roles()==null?theme.getString("states.unavailable","Unavailable"):plugin.roles().primary(p.getUniqueId());
         List<Entry> entries=new ArrayList<>();
         entries.add(button("punishments","Punishments",Material.BOOK,()->punishments(p,s.identity(),false)));
         entries.add(button("report","Report",Material.PAPER,()->report(p)));
         entries.add(button("appeal","Appeal a case",Material.WRITABLE_BOOK,()->appeal(p)));
         entries.add(button("refresh","Refresh account",Material.CLOCK,()->account(p)));
         if(admin(p))entries.add(button("admin","Administration",Material.NETHER_STAR,()->adminMenu(p)));
-        show(p,false,"Account",themed("bodies.account","Linked Discord: <discord>\nMinecraft identity: <identity>\nPrimary group: <group>\nTrusted profile: <profile>","discord",s.linked(),"identity",s.identity(),"group",group,"profile",Objects.toString(plugin.verification().profile(p.getUniqueId()),"None")),entries);
+        show(p,false,"Account",themed("bodies.account","Linked Discord: <discord>\nMinecraft identity: <identity>\nPrimary group: <group>\nTrusted profile: <profile>","discord",s.linked(),"identity",s.identity(),"group",group,"profile",Objects.toString(plugin.verification().profile(p.getUniqueId()),theme.getString("states.none","None"))),entries);
     }
     void appeal(Player p){
         if(!verified(p))return;
@@ -79,12 +81,12 @@ final class DashboardMenus implements Listener,AutoCloseable {
         if(staff?!admin(p):!verified(p))return;
         var list=plugin.moderation()==null?List.<SanctionState.Case>of():plugin.moderation().active(identity);
         Component details=themed("bodies.punishments","Active local sanctions: <count>","count",Integer.toString(list.size()));
-        for(var c:list.stream().limit(12).toList())details=details.append(Component.newline()).append(themed("bodies.sanction","<kind> · <id>\n<expiry> · <reason>","kind",c.kind().toString(),"id",c.id().toString(),"expiry",c.expiry()==0?theme.getString("labels.indefinite","Indefinite"):java.time.Instant.ofEpochMilli(c.expiry()).toString(),"reason",c.reason()));
+        for(var c:list.stream().limit(12).toList())details=details.append(Component.newline()).append(themed("bodies.sanction","<kind> · <id>\n<expiry> · <reason>","kind",label("type-"+key(c.kind().name()),c.kind().name()),"id",c.id().toString(),"expiry",c.expiry()==0?theme.getString("labels.indefinite","Indefinite"):java.time.Instant.ofEpochMilli(c.expiry()).toString(),"reason",c.reason()));
         show(p,staff,"Punishments",details,List.of(button("back","Back",Material.ARROW,()->{if(staff)adminMenu(p);else account(p);})));
     }
     void adminMenu(Player p){
         if(!admin(p)){message(p,"admin-required","A verified trusted administrator and orionbridge.admin.gui are required.");return;}
-        Component status=themed("bodies.control-center","Online: <online>\nAudit: <audit>\nModeration: <moderation>\nLockdown: <lockdown>\nDiscord dashboard owns policy changes and approvals.","online",Integer.toString(plugin.getServer().getOnlinePlayers().size()),"audit",Boolean.toString(plugin.audit()!=null),"moderation",Boolean.toString(plugin.moderation()!=null),"lockdown",Boolean.toString(plugin.guard()!=null&&plugin.guard().lockdown()));
+        Component status=themed("bodies.control-center","Online: <online>\nAudit: <audit>\nModeration: <moderation>\nLockdown: <lockdown>\nDiscord dashboard owns policy changes and approvals.","online",Integer.toString(plugin.getServer().getOnlinePlayers().size()),"audit",state(plugin.audit()!=null),"moderation",state(plugin.moderation()!=null),"lockdown",state(plugin.guard()!=null&&plugin.guard().lockdown()));
         show(p,true,"Control Center",status,List.of(button("players","Online players",Material.PLAYER_HEAD,()->players(p,0)),button("search","Search identity",Material.COMPASS,()->input(p,true,"Inspect account","Canonical Minecraft identity",id->{if(SanctionState.validIdentity(id.strip()))inspect(p,id.strip(),id.strip());})),button("performance","Performance",Material.CLOCK,()->show(p,true,"Diagnostics",plugin.metrics().json(),List.of(button("back","Back",Material.ARROW,()->adminMenu(p))))),button("account","My account",Material.BOOK,()->account(p))));
     }
     private void players(Player p,int page){
@@ -94,7 +96,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
         List<Entry> entries=new ArrayList<>();
         for(Player player:online.stream().skip(current*20L).limit(20).toList()){
             UUID id=player.getUniqueId();
-            entries.add(new Entry(theme.getString("labels.player","<name>").replace("<name>",player.getName().replace("\\","\\\\").replace("<","\\<")),material("player",Material.PLAYER_HEAD),()->{
+            entries.add(entry("player",themed("labels.player","<name>","name",player.getName()),Material.PLAYER_HEAD,()->{
                 if(!admin(p))return;Player target=plugin.getServer().getPlayer(id);
                 String identity=target==null?null:plugin.identities().fresh(target);
                 if(identity!=null)inspect(p,identity,target.getName());
@@ -113,7 +115,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
     private void request(Player p,String identity){
         if(!admin(p)||plugin.audit()==null)return;
         var types=List.of("WARNING","MUTE","FREEZE","QUARANTINE","BUILD_RESTRICTION","WORLDEDIT_RESTRICTION","TEMP_BAN");
-        show(p,true,"Punishment request",themed("bodies.punishment-request","Select a type; an independent Discord administrator must approve."),types.stream().map(type->new Entry(label("type-"+key(type),type),material("type-"+key(type),Material.PAPER),()->input(p,true,"Request "+type,"Duration and reason (e.g. 1h griefing)",raw->{
+        show(p,true,"Punishment request",themed("bodies.punishment-request","Select a type; an independent Discord administrator must approve."),types.stream().map(type->entry("type-"+key(type),component(label("type-"+key(type),type)),Material.PAPER,()->input(p,true,"Request "+type,"Duration and reason (e.g. 1h griefing)",raw->{
             if(!admin(p)||plugin.audit()==null)return;
             String text=raw.replaceAll("[\\p{Cntrl}]"," ").strip();
             if(text.isEmpty()||text.length()>450)return;
@@ -128,7 +130,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
         var legacy=LegacyComponentSerializer.legacySection();
         Component heading=themed("headings."+key(title),title),prompt=themed("inputs."+key(title),hint);
         if(Bedrock.detect(p)==Bedrock.Detection.BEDROCK&&Bedrock.input(p,plugin,legacy.serialize(heading),legacy.serialize(prompt),theme.getString("layout.input-placeholder",""),safe,()->{}))return;
-        if(JavaDialogs.input(p,plugin,heading,prompt,themed("labels.submit","Submit"),themed("labels.cancel","Cancel"),Math.max(50,Math.min(300,theme.getInt("layout.input-width",240))),safe))return;
+        if(JavaDialogs.input(p,plugin,heading,prompt,themed("labels.submit","Submit"),themed("labels.cancel","Cancel"),Math.max(50,Math.min(300,theme.getInt("layout.input-width",240))),Math.max(50,Math.min(300,theme.getInt("layout.input-button-width",100))),safe))return;
         message(p,"input-unavailable","Input interface unavailable. Use the Discord dashboard.");
     }
     private boolean usable(Player p,boolean staff,UUID token){return open&&Objects.equals(screens.get(p.getUniqueId()),token)&&(staff?admin(p):verified(p));}
@@ -140,8 +142,8 @@ final class DashboardMenus implements Listener,AutoCloseable {
         Consumer<Integer> callback=index->{if(index>=0&&index<entries.size()&&usable(p,staff,token)){screens.remove(p.getUniqueId(),token);entries.get(index).action().run();}};
         var detection=Bedrock.detect(p);
         var legacy=LegacyComponentSerializer.legacySection();
-        if(detection==Bedrock.Detection.BEDROCK&&Bedrock.show(p,plugin,legacy.serialize(title(heading)),legacy.serialize(details),entries.stream().map(e->new Bedrock.Button(legacy.serialize(component(e.name())),e.image())).toList(),callback,()->{}))return;
-        if(detection==Bedrock.Detection.JAVA&&!interfaceType.equalsIgnoreCase("INVENTORY")&&JavaDialogs.show(p,plugin,title(heading),details,null,entries.stream().map(e->new JavaDialogs.Button(component(e.name()),null)).toList(),Math.max(1,Math.min(2,theme.getInt("layout.dialog-columns",2))),Math.max(50,Math.min(300,theme.getInt("layout.dialog-button-width",150))),-1,callback))return;
+        if(detection==Bedrock.Detection.BEDROCK&&Bedrock.show(p,plugin,legacy.serialize(title(heading)),legacy.serialize(details),entries.stream().map(e->new Bedrock.Button(legacy.serialize(e.name()),e.image())).toList(),callback,()->{}))return;
+        if(detection==Bedrock.Detection.JAVA&&!interfaceType.equalsIgnoreCase("INVENTORY")&&JavaDialogs.show(p,plugin,title(heading),details,null,entries.stream().map(e->new JavaDialogs.Button(e.name(),e.tooltip())).toList(),Math.max(1,Math.min(2,theme.getInt("layout.dialog-columns",2))),Math.max(50,Math.min(300,theme.getInt("layout.dialog-button-width",150))),-1,callback))return;
         if(detection!=Bedrock.Detection.JAVA){p.sendMessage(title(heading));p.sendMessage(details);return;}
         Holder holder=new Holder(p.getUniqueId(),token,staff,callback);
         int size=Math.max(Math.max(27,Math.min(54,theme.getInt("layout.inventory-rows",3)*9)),Math.min(54,((entries.size()+1+8)/9)*9));holder.inventory=Bukkit.createInventory(holder,size,title(heading));
@@ -151,7 +153,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
         for(int i=0;i<entries.size();i++){
             Entry e=entries.get(i);ItemStack item=new ItemStack(e.material());var meta=item.getItemMeta();
             if(meta instanceof SkullMeta skull&&e.head()!=null){Player target=plugin.getServer().getPlayer(e.head());if(target!=null)skull.setPlayerProfile(target.getPlayerProfile());}
-            meta.displayName(component(e.name()).decoration(TextDecoration.ITALIC,theme.getBoolean("layout.italic-items",false)));item.setItemMeta(meta);int slot=positions.get(i);holder.inventory.setItem(slot,item);holder.positions.put(slot,i);
+            meta.displayName(e.name().decoration(TextDecoration.ITALIC,theme.getBoolean("layout.italic-items",false)));item.setItemMeta(meta);int slot=positions.get(i);holder.inventory.setItem(slot,item);holder.positions.put(slot,i);
         }
         p.openInventory(holder.inventory);
     }

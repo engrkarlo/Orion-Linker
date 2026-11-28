@@ -42,7 +42,7 @@ public final class CategoryConfigSmoke {
             check(CategoryConfig.migrate(fresh,defaults,categories));var clean=CategoryConfig.load(fresh,defaults,categories);check(!clean.getBoolean("chat.enabled"));check(clean.isConfigurationSection("guard.profiles.administrator.worldedit-scope"));check(clean.isList("guard.profiles.administrator.worldedit-scope.commands"));
             Files.createDirectories(fresh.resolve("menus"));Files.writeString(fresh.resolve("menus/dashboard.yml"),"theme-version: 1\nlabels:\n  back: My custom back\n");
             CategoryConfig.prepareMenu(fresh,"dashboard",resource("menus/dashboard.yml"));
-            var menu=CategoryConfig.read(fresh.resolve("menus/dashboard.yml"));check(menu.getInt("theme-version")==2);check(menu.getString("labels.back").equals("My custom back"));check(menu.contains("bodies.account"));
+            var menu=CategoryConfig.read(fresh.resolve("menus/dashboard.yml"));check(menu.getInt("theme-version")==resource("menus/dashboard.yml").getInt("theme-version"));check(menu.getString("labels.back").equals("My custom back"));check(menu.contains("bodies.account"));
             // Interrupted migration: an identical category can be reused.
             Files.writeString(retry.resolve("config.yml"),original);Files.createDirectories(retry.resolve("config"));
             Files.copy(dir.resolve("config/audit.yml"),retry.resolve("config/audit.yml"));

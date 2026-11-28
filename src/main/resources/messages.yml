@@ -8,7 +8,7 @@ commands:
   denied: '<red>✗ You cannot use this command right now.</red> <gray>Check your permissions, verification and enabled features.</gray>'
   help-unavailable: '<red>Command guide unavailable. Check menus/help.yml.</red>'
   reload-start: '<light_purple>✦ OrionBridge</light_purple> <gray>Reloading configuration and menus…</gray>'
-  reload-applied: '<green>✓ All OrionBridge configuration files reloaded.</green> <gray>Linked players may briefly wait for authorization.</gray>'
+  reload-applied: '<green>✓ All OrionBridge configuration files reloaded.</green> <gray>Security changes may require fresh authorization.</gray>'
   reload-busy: '<yellow>Bridge is processing a signed request. No settings changed; try /ob reload again shortly.</yellow>'
   reload-unchanged: '<red>✗ Configuration could not be read or validated. Existing services unchanged. See console.</red>'
   reload-restored: '<yellow>New configuration failed; previous runtime restored. See console.</yellow>'

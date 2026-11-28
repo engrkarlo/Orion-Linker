@@ -3,7 +3,7 @@
 # Used for DIALOG mode and text fallback. Only button names and dialog sizing are used; material/image are retained for compatibility.
 # Use MiniMessage colors. Keep <code>, <discord>, <discord_id> and <invite> placeholders where needed.
 # Never expose the private code in public chat. Restart Paper to apply changes.
-theme-version: 2
+theme-version: 3
 title: '<light_purple>OrionBridge</light_purple> | <white>Account verification</white>'
 # Each screen corresponds to a different step of the verification process.
 screens:
@@ -18,22 +18,32 @@ screens:
 buttons:
   link:
     name: '<white>Link Discord Account</white>'
+    # Optional hover text on Java dialogs (leave blank to disable).
+    tooltip: ''
     material: TRIPWIRE_HOOK
     image: 'textures/items/trip_wire_source'
   refresh:
     name: '<white>Refresh</white>'
+    # Optional hover text on Java dialogs (leave blank to disable).
+    tooltip: ''
     material: CLOCK
     image: 'textures/items/clock_item'
   regenerate:
     name: '<white>Generate New Code</white>'
+    # Optional hover text on Java dialogs (leave blank to disable).
+    tooltip: ''
     material: PAPER
     image: 'textures/items/paper'
   confirm:
     name: '<white>Confirm Account</white>'
+    # Optional hover text on Java dialogs (leave blank to disable).
+    tooltip: ''
     material: EMERALD
     image: 'textures/items/emerald'
   close:
     name: '<white>Close</white>'
+    # Optional hover text on Java dialogs (leave blank to disable).
+    tooltip: ''
     material: BARRIER
     image: ''
 # Number of buttons per row (1–2) and button width (50–300).

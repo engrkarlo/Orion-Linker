@@ -6,5 +6,6 @@ final class RequestAdmission {
     private boolean closed;
     synchronized boolean enter(){if(closed)return false;active++;return true;}
     synchronized void leave(){if(active<=0)throw new IllegalStateException("Unbalanced request");active--;}
+    synchronized void resume(){closed=false;}
     synchronized boolean quiesce(){if(active!=0)return false;closed=true;return true;}
 }
