@@ -1,11 +1,8 @@
-# OrionBridge | Signed control and moderation
-# Pull mode only. Required for Discord verification, chat and signed actions.
-# When enabled, the plugin can receive approved typed actions (e.g. mute, freeze,
-# ban), not arbitrary console commands. Enable matching features in OrionBot.
-# Requires the guild and server IDs from config/audit.yml and its OWN key.
-# Use /ob reload after changes.
+# OrionBridge | Signed control
+# Guided setup activates this service using private credentials.
+# Required for account linking, chat and approved typed moderation actions.
+# It does not permit arbitrary console commands.
 control:
   enabled: false
-  # Paste the control signing key from Setup credentials in OrionBot.
-  # Never reuse the telemetry token or audit signing key.
+  # Legacy credential import only. Leave blank when using guided setup.
   signing-key: ''

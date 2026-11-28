@@ -32,7 +32,7 @@ final class ControlEndpoint {
         }
         if(health){
             if(!method.equals("GET")||body.length!=0){ex.sendResponseHeaders(405,-1);return;}
-            respond(ex,plugin.metrics().json());return;
+            String metrics=plugin.metrics().json();respond(ex,metrics.substring(0,metrics.length()-1)+",\"setup\":"+plugin.setupStatus()+"}");return;
         }
         if(recovery){
             try{respond(ex,plugin.recovery().request(new String(body,StandardCharsets.UTF_8)));}

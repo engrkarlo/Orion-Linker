@@ -6,6 +6,13 @@ This development preview includes implementation and regression tests, not produ
 
 ## Live acceptance checklist
 
+- Verify private credential migration from a matched alpha.8 backup, conflict rejection, preserved keys and missing-private-file rejection. Verify offline Java with AuthMe, existing explicit realm preservation, realm isolation between servers, and Floodgate authenticated XUID on the same offline server.
+
+- New install: pair without copying permanent credentials, reject wrong/expired codes and conflicting scopes, test cancel/retry, restart each process before code submission, after staging, after approval and after a lost receipt, and compare the console requester and feature. Test private channel creation and group/role selection.
+- Test WebSocket and HTTP fallback through the actual proxy; reject unsigned, replayed and oversized requests; interrupt a mutation after send and reconcile its receipt without duplicate application.
+- Test optional linking (ordinary gameplay remains available), unlinked public chat, then explicitly activate forced linking after the linked test account is ready. Forced verification must still restrict OPs, expired sessions, unauthenticated Java and Bedrock players. Staff chat remains linked/authorized.
+
+
 - Upgrade from custom config v5/v9/v12 with preserved token, menus and data. Verify migration to v15, category values, backup, restart and matched restore. Test interrupted migration, conflict rejection, missing v15 category, fresh install, and existing menu theme preservation.
 - Link Java online, offline Java after AuthMe and Floodgate Bedrock. Test disconnect before claim, offline Discord claim, reconnect before/after expiry, Java and Bedrock client crashes, Minecraft/bot restart, explicit regeneration, wrong account, replay and session replacement. Confirm AuthMe login alone cannot unlock movement.
 - Test optional lobby with valid and unavailable spawn, reconnect, return to safe loaded location, cancelled teleport, missing world and no inventory changes. Leave disabled unless accepted.

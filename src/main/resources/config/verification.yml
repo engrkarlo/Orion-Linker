@@ -1,16 +1,20 @@
 # OrionBridge | Account verification
-# Test Pull pairing, signed control, Discord verification panel and emergency
-# console access first. Enabling both switches restricts unverified players,
-# including operators, until they link and confirm their Discord account.
-# Java, Bedrock/Floodgate and authenticated AuthMe players are supported.
-# During bot/network outages, authorization expires and gameplay is restricted.
+# Start with the Discord setup wizard. It activates optional account linking first.
+# Required linking is a separate choice: unverified players (including OPs)
+# are restricted only when force is true. Java + Floodgate Bedrock are supported.
+# Offline Java players must finish AuthMe login before linking.
+# Required linking expires access during bot/network outages.
 # Emergency console command: ob verification-off (until reload or restart).
 # Use /ob reload after changes.
 verification:
-  # Opt in to account verification; false means no verification gate.
+  # Enable account linking. Leave false if you only want server status.
   enabled: false
-  # Set true only after setup and testing. Both switches are required.
+  # Set true only after setup and testing. Both switches activate account linking.
   setup-complete: false
+  # true = require linking before gameplay (including operators).
+  # false = optional linking; unlinked players can play, but cannot use trusted features.
+  # Existing installations retain forced verification unless explicitly changed.
+  force: true
   # DIALOG = native Java dialog; INVENTORY = chest-style Java menu.
   # Bedrock uses its own forms automatically. See menus/ for appearance.
   java-interface: DIALOG
@@ -23,8 +27,12 @@ verification:
   # Reopen verification for restricted players after this many seconds (0–300).
   # 0 disables automatic reopening, not the verification requirement.
   reopen-seconds: 15
-  # Offline Java: use a short realm name only for a trusted AuthMe database.
-  # Leave empty for online-mode Java; share a realm only when accounts are shared.
+  # Offline Java + AuthMe: setup automatically saves a unique realm for this server.
+  # Leave blank until guided setup; online Java and Floodgate do not need a realm.
+  # Never rename a realm after accounts have linked. Share an explicit realm only
+  # across servers using the same trusted AuthMe database and account namespace.
+  # Set false only if you deliberately do not want offline Java identity linking.
+  auto-authme-realm: true
   authme-realm: ''
   lobby:
     # Optional: move restricted players to a loaded safe spawn, remember their

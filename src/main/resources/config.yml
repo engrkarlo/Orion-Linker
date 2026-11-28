@@ -1,6 +1,9 @@
 # OrionBridge | Connection and telemetry
-# Start here. Other features have their own files in config/.
-# Change only what you need. Keep the token and all signing keys private.
+# Set the hosting allocation port, start the server, then run ob setup.
+# The automatic setup in OrionBot handles private signing credentials for you.
+# Advanced features have their own files in config/.
+# Change only what you need. Pairing credentials live in internal/credentials.yml.
+# Back up the entire plugin folder, including internal/.
 # Restart Paper after installing an update; /ob reload applies all OrionBridge configuration and theme files.
 # Do not manually change the version; the plugin handles upgrades.
 config-version: 15
@@ -10,6 +13,10 @@ config-version: 15
 # push: Minecraft sends telemetry to OrionBot; security features are not available.
 mode: pull
 
+# AUTO accepts WebSocket and authenticated HTTP on the same proxy allocation.
+# HTTP is the compatibility option. WEBSOCKET requires the socket-capable listener.
+transport: AUTO
+
 # Use 0.0.0.0 for a Pterodactyl allocation/reverse proxy, or 127.0.0.1
 # only when the reverse proxy runs on the same network namespace.
 bind: '0.0.0.0'
@@ -17,8 +24,8 @@ bind: '0.0.0.0'
 port: 25762
 # Push only: paste the pairing URL from OrionBot. Leave empty in Pull mode.
 endpoint: ''
-# Pull generates a token if empty on first start. Never regenerate an existing
-# token casually: OrionBot will lose its current pairing.
+# Legacy import only: leave empty. Existing tokens migrate into private storage.
+# For new connections use ob setup; do not copy or rotate private keys manually.
 token: ''
 # How often the plugin collects player count, TPS, MSPT and other telemetry (5–30s).
 interval-seconds: 10

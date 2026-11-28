@@ -1,0 +1,100 @@
+package io.github.engrkarlo.orionbridge;
+
+import java.io.IOException;
+import java.nio.file.*;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+/** A private journal commits the approved provisioning intent before touching any category.
+ * Recovery is idempotent; existing non-empty keys and scopes can never be replaced. */
+final class SetupConfig {
+    private SetupConfig(){}
+    private static Path journal(Path dir){return dir.resolve("internal/setup-pending.yml");}
+    private static Path existingJournal(Path dir)throws IOException{
+        Path old=dir.resolve("setup-pending.yml"),next=journal(dir);
+        if(Files.exists(old,LinkOption.NOFOLLOW_LINKS)&&Files.exists(next,LinkOption.NOFOLLOW_LINKS))throw new IOException("Conflicting setup recovery journals");
+        return Files.exists(old,LinkOption.NOFOLLOW_LINKS)?old:next;
+    }
+    private record Plan(YamlConfiguration audit,YamlConfiguration control,YamlConfiguration correlation,YamlConfiguration credentials){}
+    private static Plan plan(Path dir,SetupRequest.Credentials c)throws Exception{
+        var a=CategoryConfig.read(dir.resolve("config/audit.yml"));
+        var b=CategoryConfig.read(dir.resolve("config/control.yml"));
+        var n=CategoryConfig.read(dir.resolve("config/correlation.yml"));
+        var privateKeys=PairingCredentials.read(dir);PairingCredentials.verify(privateKeys,c);
+        return new Plan(a,b,n,privateKeys);
+    }
+    static void provision(Path dir,SetupRequest.Credentials c)throws Exception{provision(dir,c,false);}
+    static void provision(Path dir,SetupRequest.Credentials c,boolean autoRealm)throws Exception{
+        PairingCredentials.migrate(dir);
+        if(Files.exists(existingJournal(dir),LinkOption.NOFOLLOW_LINKS))throw new IOException("An approved setup is already pending; reload to recover it");
+        var root=CategoryConfig.readRoot(dir);
+        if(!"pull".equals(root.getString("mode"))||!c.distinct(PairingCredentials.read(dir).getString("token","")))throw new IOException("Setup requires Pull and distinct credentials");
+        var p=plan(dir,c);
+        var j=new YamlConfiguration();
+        j.set("auto-realm",autoRealm);j.set("feature",c.feature());j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
+        // Only new services are automatically activated. Existing settings remain exactly as chosen.
+        j.set("enable-audit",c.feature().equals("AUDIT"));
+        j.set("enable-control",p.credentials().getString("control.signing-key","").isEmpty());
+        featurePlan(dir,c.feature(),c.server(),autoRealm); // Validate all affected files before committing the intent.
+        CategoryConfig.save(journal(dir),j);
+        recover(dir);
+    }
+    private static java.util.Map<String,YamlConfiguration> featurePlan(Path dir,String action,String server,boolean autoRealm)throws Exception{
+        if(action.equals("CREDENTIALS")||action.equals("AUDIT"))return java.util.Map.of();
+        var v=CategoryConfig.read(dir.resolve("config/verification.yml"));
+        var chat=CategoryConfig.read(dir.resolve("config/chat.yml"));
+        boolean active=v.getBoolean("verification.enabled")&&v.getBoolean("verification.setup-complete");
+        boolean force=active&&v.getBoolean("verification.force",true);
+        // Explicitly enabled features never downgrade a previously active forced policy.
+        switch(action){
+            case "CHAT"->{
+                boolean existing=chat.getBoolean("chat.enabled");
+                chat.set("chat.enabled",true);
+                if(!existing)chat.set("chat.require-link",force);
+                return java.util.Map.of("chat",chat);
+            }
+            case "LINK"->{
+                if(autoRealm&&v.getBoolean("verification.auto-authme-realm",true))v.set("verification.authme-realm",AuthMeRealm.forSetup(v.getString("verification.authme-realm",""),server,true,true));
+                if(!active){v.set("verification.enabled",true);v.set("verification.setup-complete",true);v.set("verification.force",false);}
+                if(v.getBoolean("verification.lobby.enabled")&&!v.getBoolean("verification.force",true))throw new IOException("Disable the verification lobby before enabling optional linking");
+                return java.util.Map.of("verification",v);
+            }
+            case "ROLES","GUARD","RECOVERY"->{
+                String category=action.toLowerCase(java.util.Locale.ROOT);
+                var file=CategoryConfig.read(dir.resolve("config/"+category+".yml"));
+                if(action.equals("ROLES")&&!active)throw new IOException("Enable account linking before rank sync");
+                if(action.equals("GUARD")&&!force)throw new IOException("Test required linking before Guard enforcement");
+                file.set(category+".enabled",true);
+                return java.util.Map.of(category,file);
+            }
+            case "FORCE"->{
+                if(!active)throw new IOException("Enable and test optional account linking first");
+                v.set("verification.force",true);
+                return java.util.Map.of("verification",v);
+            }
+            default->throw new IOException("Unknown setup feature");
+        }
+    }
+    static void recover(Path dir)throws Exception{
+        Path pending=existingJournal(dir);
+        if(Files.notExists(pending,LinkOption.NOFOLLOW_LINKS))return;
+        var j=CategoryConfig.read(pending);
+        var c=new SetupRequest.Credentials(j.getString("guild",""),j.getString("server",""),j.getString("actor",""),j.getString("audit",""),j.getString("control",""),j.getString("network",""),j.getString("feature","CREDENTIALS"));
+        var root=CategoryConfig.readRoot(dir);
+        if(!"pull".equals(root.getString("mode"))||!c.distinct(PairingCredentials.read(dir).getString("token","")))throw new IOException("Pending setup no longer matches connection");
+        if(!j.isBoolean("enable-audit")||!j.isBoolean("enable-control"))throw new IOException("Invalid setup journal");
+        var p=plan(dir,c);
+        var feature=featurePlan(dir,c.feature(),c.server(),j.getBoolean("auto-realm",false));
+        PairingCredentials.provision(dir,c);
+        if(j.getBoolean("enable-audit"))p.audit().set("audit.enabled",true);
+        if(j.getBoolean("enable-control"))p.control().set("control.enabled",true);
+        // Scope and keys first, feature activation last. Never activate rollback or correlation implicitly.
+        var files=new java.util.LinkedHashMap<String,YamlConfiguration>();files.put("audit",p.audit());files.put("control",p.control());files.put("correlation",p.correlation());files.putAll(feature);
+        for(var e:files.entrySet()){
+            Path file=dir.resolve("config/"+e.getKey()+".yml");
+            if(!CategoryConfig.same(CategoryConfig.read(file),e.getValue())){
+                CategoryConfig.backup(file,"setup");CategoryConfig.save(file,e.getValue());
+            }
+        }
+        Files.delete(pending);
+    }
+}

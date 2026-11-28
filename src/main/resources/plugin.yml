@@ -1,5 +1,5 @@
 name: OrionBridge
-version: '2.0.0-alpha.7'
+version: '2.0.0-alpha.9'
 main: io.github.engrkarlo.orionbridge.OrionBridge
 api-version: '26.3'
 description: Authenticated telemetry, experimental identity and security bridge for OrionBot.

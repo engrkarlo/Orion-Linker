@@ -10,7 +10,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 
-/** One root connection file plus independent, independent feature files.
+/** One root connection file plus independent feature files.
  * The root version is the migration commit marker, written last. */
 final class CategoryConfig {
     static final int VERSION=15;
@@ -41,7 +41,21 @@ final class CategoryConfig {
         for(String name:CATEGORIES)categories.put(name,resource(plugin,"config/"+name+".yml"));
         boolean changed=migrate(directory,defaults,categories);
         if(changed)plugin.getLogger().info("Configuration v15: feature files are in config/. Existing values retained; previous root backed up.");
+        refreshAdditive(directory,defaults,categories);
+        PairingCredentials.migrate(directory);
+        SetupConfig.recover(directory);
         var combined=load(directory,defaults,categories);
+        PairingCredentials.overlay(directory,combined);
+        // A blank legacy realm never had an authenticated AuthMe identity. Fill
+        // it only for an active, scoped offline server with AuthMe installed.
+        if(combined.getBoolean("verification.auto-authme-realm",true)&&combined.getBoolean("verification.enabled")&&combined.getBoolean("verification.setup-complete")&&!plugin.getServer().getOnlineMode()&&plugin.getServer().getPluginManager().isPluginEnabled("AuthMe")&&combined.getString("verification.authme-realm","").isEmpty()){
+            String server=combined.getString("audit.server-id","");
+            if(server.matches("[a-f0-9]{16}")){
+                String realm=AuthMeRealm.forSetup("",server,true,true);
+                Path file=directory.resolve("config/verification.yml");var y=read(file);y.set("verification.authme-realm",realm);backup(file,"authme-realm");save(file,y);combined.set("verification.authme-realm",realm);
+                plugin.getLogger().info("Assigned a stable AuthMe realm for this offline server. Existing explicit realms are retained.");
+            }
+        }
         if(Files.isSymbolicLink(directory.resolve("menus")))throw new LayoutException("Invalid menus directory");
         for(String name:MENUS)prepareMenu(directory,name,resource(plugin,"menus/"+name+".yml"));
         prepareTheme(directory.resolve("messages.yml"),"messages",resource(plugin,"messages.yml"));
@@ -87,6 +101,19 @@ final class CategoryConfig {
         merge(legacy,defaults,true);legacy.set("config-version",VERSION);
         save(rootFile,legacy);
         return true;
+    }
+    /** Persist newly introduced defaults after validating every file. Existing custom values remain. */
+    static void refreshAdditive(Path directory,YamlConfiguration defaults,Map<String,YamlConfiguration> categories)throws Exception{
+        var changes=new LinkedHashMap<Path,YamlConfiguration>();
+        Path root=directory.resolve("config.yml");var old=readRoot(directory);var next=read(root);merge(next,defaults,true);
+        if(!same(old,next))changes.put(root,next);
+        for(String name:CATEGORIES){
+            Path file=directory.resolve("config/"+name+".yml");old=read(file);next=read(file);
+            if(!old.getKeys(false).equals(Set.of(name))||!old.isConfigurationSection(name))throw new LayoutException("Invalid feature section "+name);
+            merge(next,Objects.requireNonNull(categories.get(name)),true);
+            if(!same(old,next))changes.put(file,next);
+        }
+        for(var e:changes.entrySet()){backup(e.getKey(),"additive");save(e.getKey(),e.getValue());}
     }
     static YamlConfiguration load(Path directory,YamlConfiguration defaults,Map<String,YamlConfiguration> categories)throws Exception{
         var combined=readRoot(directory);merge(combined,defaults,false);

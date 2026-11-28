@@ -27,6 +27,7 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final String invite;
     private final long lease;
     private final int reopenSeconds;
+    private final boolean force;
     private final BukkitTask refresh;
     private final Map<UUID,Long> lastShown=new HashMap<>();
     private final Map<UUID,Boolean> wasVerified=new HashMap<>();
@@ -60,12 +61,14 @@ final class VerificationGate implements Listener,AutoCloseable {
     }
     VerificationState.Session session(UUID player){return active?state.get(player):null;}
     boolean authorized(UUID player){return linkedIdentity(player)!=null;}
+    boolean forced(){return force;}
     VerificationGate(OrionBridge plugin,YamlConfiguration cfg)throws Exception{this(plugin,cfg,null);}
     VerificationGate(OrionBridge plugin,YamlConfiguration cfg,VerificationState previous)throws Exception{
         this.state=previous==null?new VerificationState():previous.forReload(System.currentTimeMillis());
         this.plugin=plugin;identities=plugin.identities();
         invite=cfg.getString("verification.discord-invite","");lease=Math.max(15,Math.min(60,cfg.getInt("verification.lease-seconds",60)))*1000L;
         reopenSeconds=Math.max(0,Math.min(300,cfg.getInt("verification.reopen-seconds",15)));
+        force=cfg.getBoolean("verification.force",true);
         lobby=new VerificationLobby(plugin,cfg);
         menus=new VerificationMenus(plugin,cfg);
         for(Player p:plugin.getServer().getOnlinePlayers())state.join(p.getUniqueId(),identities.resolve(p));
@@ -73,7 +76,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->plugin.metrics().measure("verification",this::sample),20L,20L);
     }
     private boolean restricted(Player p){
-        if(!active)return false;
+        if(!active||!force)return false;
         var s=state.get(p.getUniqueId());
         if(s==null||!s.verified(System.currentTimeMillis()))return true;
         // AuthMe logout/re-authentication cannot use the previous lease between samples.
@@ -95,9 +98,9 @@ final class VerificationGate implements Listener,AutoCloseable {
         }
         if(s.verified(now)){
             if(!lobby.restore(p,s.identity()))plugin.messages().send(p,"verification.return-unavailable");
-        }else lobby.enter(p,s.identity());
+        }else if(force)lobby.enter(p,s.identity());
         lastShown.put(p.getUniqueId(),now);
-        menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis()))show(p);},()->{if(same(p,s))p.closeInventory();});
+        menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());cachedSnapshot=null;plugin.signal("verification");show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis())){cachedSnapshot=null;plugin.signal("verification");show(p);}},()->{if(same(p,s))p.closeInventory();});
     }
     boolean playerCommand(Player p,String[] args){
         if(!active)return false;
@@ -111,12 +114,12 @@ final class VerificationGate implements Listener,AutoCloseable {
             plugin.messages().send(p,"verification.authenticate-link");return true;
         }
         if(args.length==1&&args[0].equalsIgnoreCase("return")){
-            if(restricted(p)){plugin.messages().send(p,"verification.return-required");return true;}
+            if(!authorized(p.getUniqueId())){plugin.messages().send(p,"verification.return-required");return true;}
             plugin.messages().send(p,lobby.restore(p,identity)?"verification.return-ok":"verification.return-unavailable");return true;
         }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){
-            long now=System.currentTimeMillis();var s=state.expireChallenge(p.getUniqueId(),now);if(s!=null&&s.request()==null)state.request(p.getUniqueId(),now);
+            long now=System.currentTimeMillis();var s=state.expireChallenge(p.getUniqueId(),now);if(s!=null&&s.request()==null){state.request(p.getUniqueId(),now);cachedSnapshot=null;plugin.signal("verification");}
             show(p);return true;
         }
         if(args.length==2&&args[0].equalsIgnoreCase("confirm")){
@@ -134,7 +137,7 @@ final class VerificationGate implements Listener,AutoCloseable {
             if(s.identity()==null||rows.size()>=2000)continue;
             rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"regenerate\":"+s.regenerate()+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+",\"primaryGroup\":"+q(primaryGroups.getOrDefault(s.player(),""))+"}");
         }
-        String json="{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"taskScopes\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
+        String json="{\"protocol\":2,\"batchVerification\":true,\"resumeChallenges\":true,\"taskScopes\":true,\"leaseSeconds\":"+(lease/1000)+",\"forced\":"+force+",\"sessions\":["+String.join(",",rows)+"]}";
         cachedSnapshot=new CachedSnapshot(nanos,json);return json;
     }
     private static String q(String v){return OrionBridge.quote(v);}
@@ -179,6 +182,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         Player p=plugin.getServer().getPlayer(player);
         if(p==null||!p.isOnline()||!identity.equals(identities.fresh(p)))return "STALE";
         long now=System.currentTimeMillis();String result;
+        var prior=state.get(player);
         switch(fields[0]){
             case "OFFER"->{if(fields.length!=7)return "INVALID";result=state.offer(player,session,identity,UUID.fromString(fields[4]),fields[5],Long.parseLong(fields[6]),now);}
             case "RESUME"->{if(fields.length!=8)return "INVALID";result=state.resume(player,session,identity,fields[4].equals("-")?null:UUID.fromString(fields[4]),UUID.fromString(fields[5]),fields[6],Long.parseLong(fields[7]),now);}
@@ -208,7 +212,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         if(result.equals("APPLIED")){
             cachedSnapshot=null;
             boolean verified=state.get(player).verified(now);
-            if(!verified||!Boolean.TRUE.equals(wasVerified.get(player)))show(p);
+            if(force&&(!verified||!Boolean.TRUE.equals(wasVerified.get(player)))||!force&&prior!=null&&prior.request()!=null&&lastShown.containsKey(player))show(p);
             wasVerified.put(player,verified);
         }
         return result;
@@ -220,10 +224,10 @@ final class VerificationGate implements Listener,AutoCloseable {
         for(Player p:plugin.getServer().getOnlinePlayers()){
             UUID id=p.getUniqueId();String identity=identities.resolve(p);var s=state.get(id);
             if(plugin.roles()!=null)primaryGroups.put(id,plugin.roles().primary(id));
-            if(s==null||!Objects.equals(s.identity(),identity)){trusted.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);s=state.join(id,identity,now);lastShown.remove(id);show(p);}
+            if(s==null||!Objects.equals(s.identity(),identity)){trusted.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);s=state.join(id,identity,now);lastShown.remove(id);if(force)show(p);}
             s=state.expireChallenge(id,now);
             boolean verified=s.verified(now),before=Boolean.TRUE.equals(wasVerified.put(id,verified));
-            if(!verified&&(before||reopenSeconds>0&&now-lastShown.getOrDefault(id,0L)>=reopenSeconds*1000L))show(p);
+            if(force&&!verified&&(before||reopenSeconds>0&&now-lastShown.getOrDefault(id,0L)>=reopenSeconds*1000L))show(p);
         }
     }
     private boolean allowedCommand(Player p,String message){
@@ -236,8 +240,8 @@ final class VerificationGate implements Listener,AutoCloseable {
         var s=state.get(p.getUniqueId());
         return resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
-    @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));cachedSnapshot=null;plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);cachedSnapshot=null;lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
+    @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();trusted.remove(p.getUniqueId());state.join(p.getUniqueId(),identities.resolve(p));cachedSnapshot=null;plugin.signal("verification");if(force)plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);cachedSnapshot=null;plugin.signal("verification");lobby.forget(id);trusted.remove(id);primaryGroups.remove(id);if(plugin.roles()!=null)plugin.roles().clear(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e){if(restricted(e.getPlayer()))plugin.getServer().getScheduler().runTask(plugin,()->show(e.getPlayer()));}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(restricted(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);

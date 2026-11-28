@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 final class ChatRelay implements Listener,AutoCloseable {
-    private record Message(UUID id,long at,String identity,String name,String text,boolean staff){}
+    private record Message(UUID id,long at,String identity,String name,String text,boolean staff,boolean linked){}
     private final OrionBridge plugin;
     private final VerificationGate gate;
     private final LocalModeration moderation;
-    private final boolean outbound,inbound,staff;
+    private final boolean outbound,inbound,staff,requireLink;
     private final Deque<Message> queue=new ArrayDeque<>();
     private final Map<UUID,Long> delivered=new LinkedHashMap<>();
     private final Map<String,Long> rate=new HashMap<>();
@@ -25,6 +25,7 @@ final class ChatRelay implements Listener,AutoCloseable {
     ChatRelay(OrionBridge plugin,YamlConfiguration cfg,VerificationGate gate,LocalModeration moderation){
         this.plugin=plugin;this.gate=gate;this.moderation=moderation;
         outbound=cfg.getBoolean("chat.minecraft-to-discord",true);inbound=cfg.getBoolean("chat.discord-to-minecraft",true);staff=cfg.getBoolean("chat.staff-chat",false);
+        requireLink=cfg.getBoolean("chat.require-link",true)||gate!=null&&gate.forced();
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
     }
     private static String clean(String value,int limit){
@@ -34,8 +35,8 @@ final class ChatRelay implements Listener,AutoCloseable {
     private boolean muted(String identity){
         return moderation!=null&&moderation.state.has(identity,System.currentTimeMillis(),SanctionState.Kind.MUTE,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN);
     }
-    private synchronized boolean offer(String identity,String name,String text,boolean privateChat){
-        if(!open||!outbound||identity==null||muted(identity)||privateChat&&!staff)return false;
+    private synchronized boolean offer(String identity,String name,String text,boolean privateChat,boolean linked){
+        if(!open||!outbound||identity==null||muted(identity)||!linked&&(requireLink||privateChat)||privateChat&&!staff)return false;
         long now=System.currentTimeMillis();expire(now);
         String key=identity+":"+privateChat;
         if(now-rate.getOrDefault(key,0L)<500)return false;
@@ -43,7 +44,8 @@ final class ChatRelay implements Listener,AutoCloseable {
         rate.put(key,now);
         if(queue.size()>=512){queue.removeFirst();dropped.incrementAndGet();}
         String message=clean(text,500);if(message.isEmpty())return false;
-        queue.addLast(new Message(UUID.randomUUID(),now,identity,clean(name,64),message,privateChat));
+        queue.addLast(new Message(UUID.randomUUID(),now,identity,clean(name,64),message,privateChat,linked));
+        plugin.signal("chat");
         return true;
     }
     private void expire(long now){
@@ -52,14 +54,24 @@ final class ChatRelay implements Listener,AutoCloseable {
     }
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
     public void chat(AsyncChatEvent e){
-        String identity=gate==null?null:gate.linkedIdentity(e.getPlayer().getUniqueId());
-        if(identity!=null)offer(identity,e.getPlayer().getName(),PlainTextComponentSerializer.plainText().serialize(e.message()),false);
+        UUID player=e.getPlayer().getUniqueId();
+        String identity=gate==null?null:gate.linkedIdentity(player);
+        boolean linked=identity!=null;
+        if(!linked){
+            if(requireLink)return;
+            // Use the moderation service's thread-safe authenticated observation if present.
+            // Unauthenticated origins are chat-only, never verification or sanction identities.
+            identity=moderation==null?null:moderation.identity(player);
+            if(identity==null)identity="mc-unlinked:"+player;
+        }
+        offer(identity,e.getPlayer().getName(),PlainTextComponentSerializer.plainText().serialize(e.message()),false,linked);
     }
+    boolean requiresLink(){return requireLink;}
     boolean staffEnabled(){return open&&staff&&outbound;}
     boolean staff(Player p,String message){
         if(!open||!staff||gate==null||plugin.guard()==null||!plugin.guard().staffChat(p.getUniqueId()))return false;
         String identity=gate.linkedIdentity(p.getUniqueId());
-        if(identity==null||muted(identity)||!offer(identity,p.getName(),message,true))return false;
+        if(identity==null||muted(identity)||!offer(identity,p.getName(),message,true,true))return false;
         Component line=plugin.messages().render("chat.staff-local","name",p.getName(),"message",clean(message,500));
         for(Player viewer:plugin.getServer().getOnlinePlayers())if(plugin.guard().staffChat(viewer.getUniqueId()))viewer.sendMessage(line);
         return true;
@@ -68,19 +80,20 @@ final class ChatRelay implements Listener,AutoCloseable {
         expire(System.currentTimeMillis());List<String> rows=new ArrayList<>();
         for(Message m:queue){
             if(rows.size()>=50)break;
-            rows.add("{\"id\":"+q(m.id().toString())+",\"at\":"+m.at()+",\"identity\":"+q(m.identity())+",\"name\":"+q(m.name())+",\"text\":"+q(m.text())+",\"staff\":"+m.staff()+"}");
+            rows.add("{\"id\":"+q(m.id().toString())+",\"at\":"+m.at()+",\"identity\":"+q(m.identity())+",\"name\":"+q(m.name())+",\"text\":"+q(m.text())+",\"staff\":"+m.staff()+",\"linked\":"+m.linked()+"}");
         }
-        return "{\"protocol\":2,\"queued\":"+queue.size()+",\"dropped\":"+dropped.get()+",\"messages\":["+String.join(",",rows)+"]}";
+        return "{\"protocol\":2,\"requireLink\":"+requireLink+",\"queued\":"+queue.size()+",\"dropped\":"+dropped.get()+",\"messages\":["+String.join(",",rows)+"]}";
     }
     private static String q(String value){return OrionBridge.quote(value);}
     synchronized int acknowledge(Set<UUID> ids){int before=queue.size();queue.removeIf(m->ids.contains(m.id()));return before-queue.size();}
     String receive(String raw){
         if(!open||!inbound)return "DISABLED";
         String[] f=raw.split("\\n",-1);
-        if(f.length!=8||!f[0].equals("SEND")||!SanctionState.validIdentity(f[3])||!Set.of("true","false").contains(f[4]))return "INVALID";
+        if(f.length!=8||!f[0].equals("SEND")||!ChatIdentity.inbound(f[3])||!Set.of("true","false").contains(f[4]))return "INVALID";
         UUID id=UUID.fromString(f[1]);long time=Long.parseLong(f[2]);boolean privateChat=Boolean.parseBoolean(f[4]);
         long now=System.currentTimeMillis();
-        if(time<now-30000||time>now+5000||privateChat&&!staff||muted(f[3]))return "DENIED";
+        boolean unlinked=f[3].startsWith("discord-unlinked:");
+        if(time<now-30000||time>now+5000||privateChat&&!staff||unlinked&&(requireLink||privateChat)||muted(f[3]))return "DENIED";
         String name=clean(new String(Base64.getUrlDecoder().decode(f[5]),java.nio.charset.StandardCharsets.UTF_8),64);
         String text=clean(new String(Base64.getUrlDecoder().decode(f[6]),java.nio.charset.StandardCharsets.UTF_8),500);
         if(text.isEmpty()||name.isEmpty())return "INVALID";
@@ -99,9 +112,9 @@ final class ChatRelay implements Listener,AutoCloseable {
                     if(rate.size()>=4096){rate.entrySet().removeIf(e->t-e.getValue()>60000);if(rate.size()>=4096){result.complete("BUSY");return;}}
                     rate.put(rateKey,t);delivered.put(id,t);
                 }
-                Component message=plugin.messages().render(privateChat?"chat.discord-staff":"chat.discord","name",name,"message",text);
+                Component message=plugin.messages().render(privateChat?"chat.discord-staff":unlinked?"chat.discord-unlinked":"chat.discord","name",name,"message",text);
                 for(Player player:plugin.getServer().getOnlinePlayers()){
-                    if(gate==null||!gate.authorized(player.getUniqueId()))continue;
+                    if((requireLink||privateChat)&&(gate==null||!gate.authorized(player.getUniqueId())))continue;
                     if(!privateChat||plugin.guard()!=null&&plugin.guard().staffChat(player.getUniqueId()))player.sendMessage(message);
                 }
                 result.complete("APPLIED");
