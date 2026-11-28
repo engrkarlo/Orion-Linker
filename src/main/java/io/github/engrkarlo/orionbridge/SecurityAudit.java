@@ -16,6 +16,8 @@ final class SecurityAudit implements Listener,AutoCloseable {
     private final AuditJournal journal;
     private final OrionBridge plugin;
     private final AuthenticatedIdentity identities;
+    private final NetworkFingerprint networks;
+    private final Map<UUID,String> networkSeen=new HashMap<>();
     private final int threshold;
     private final Map<UUID,Window> windows=new HashMap<>();
     private final Map<UUID,Boolean> ops=new HashMap<>();
@@ -26,6 +28,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
     SecurityAudit(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
         this.plugin=plugin;identities=new AuthenticatedIdentity(plugin,cfg.getString("verification.authme-realm",""));String guild=cfg.getString("audit.guild-id",""),server=cfg.getString("audit.server-id",""),key=cfg.getString("audit.signing-key","");
         AuditAuth auth=new AuditAuth(guild,server,key);
+        networks=cfg.getBoolean("correlation.enabled",false)&&cfg.getBoolean("correlation.confirm-real-client-addresses",false)?new NetworkFingerprint(guild,cfg.getString("correlation.guild-key","")):null;
         threshold=Math.max(10,Math.min(100000,cfg.getInt("audit.block-changes-per-minute",500)));
         journal=new AuditJournal(plugin.getDataFolder().toPath().resolve("audit").resolve(guild).resolve(server));
         endpoint=new AuditEndpoint(journal,auth);
@@ -47,7 +50,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
         journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+identity(p)+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":\"Paper\"}");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();ops.put(p.getUniqueId(),p.isOp());emit(p,"JOIN","Player joined: "+p.getName()+"; operator="+p.isOp());}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void broken(BlockBreakEvent e){count(e.getPlayer());}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void placed(BlockPlaceEvent e){count(e.getPlayer());}
     private void count(Player p){
@@ -66,6 +69,18 @@ final class SecurityAudit implements Listener,AutoCloseable {
     }
     private void sample(){
         for(Player p:plugin.getServer().getOnlinePlayers()){
+            if(networks!=null){
+                String identity=identities.resolve(p);
+                if(identity==null)networkSeen.remove(p.getUniqueId());
+                else if(!identity.equals(networkSeen.get(p.getUniqueId()))){
+                    networkSeen.put(p.getUniqueId(),identity);
+                    var socket=p.getAddress();String fingerprint=socket==null?null:networks.fingerprint(socket.getAddress());
+                    if(fingerprint!=null){
+                        UUID event=UUID.randomUUID();
+                        journal.offer(event,"{\"id\":"+OrionBridge.quote(event.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":\"AUTHENTICATED_NETWORK\",\"identity\":"+OrionBridge.quote(identity)+",\"detail\":\"Authenticated Minecraft connection fingerprint\",\"source\":\"Paper\",\"fingerprint\":"+OrionBridge.quote(fingerprint)+"}");
+                    }
+                }
+            }
             Boolean old=ops.put(p.getUniqueId(),p.isOp());
             if(old!=null&&old!=p.isOp())emit(p,"OP_STATUS_CHANGED","Affected account "+p.getName()+"; operator "+old+" -> "+p.isOp()+"; initiator unknown");
         }

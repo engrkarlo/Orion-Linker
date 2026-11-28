@@ -27,7 +27,7 @@ function createSecurityStore({file,secret,now=Date.now}){
   const db=new DatabaseSync(file)
   db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=2500; PRAGMA journal_mode=WAL;')
   const version=db.prepare('PRAGMA user_version').get().user_version
-  if(version>2){db.close();throw Error('Unsupported security database version')}
+  if(version>3){db.close();throw Error('Unsupported security database version')}
   db.exec(`BEGIN IMMEDIATE;
   CREATE TABLE IF NOT EXISTS servers(guild TEXT NOT NULL, server TEXT NOT NULL, PRIMARY KEY(guild,server));
   CREATE TABLE IF NOT EXISTS links(guild TEXT NOT NULL, identity TEXT NOT NULL, discord TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY(guild,identity),UNIQUE(guild,discord));
@@ -40,13 +40,15 @@ function createSecurityStore({file,secret,now=Date.now}){
   CREATE INDEX IF NOT EXISTS networks_match ON networks(guild,fingerprint,last_seen);
   CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,guild TEXT NOT NULL,server TEXT NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,subject TEXT NOT NULL,at INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS deliveries(case_id TEXT NOT NULL,guild TEXT NOT NULL,server TEXT NOT NULL,revision INTEGER NOT NULL,operation TEXT NOT NULL,state TEXT NOT NULL,receipt_at INTEGER,PRIMARY KEY(case_id,guild,server),FOREIGN KEY(case_id) REFERENCES cases(id),FOREIGN KEY(guild,server) REFERENCES servers(guild,server));
-  PRAGMA user_version=2; COMMIT;`)
+  CREATE TABLE IF NOT EXISTS alert_receipts(guild TEXT NOT NULL,server TEXT NOT NULL,event_id TEXT NOT NULL,message_id TEXT NOT NULL,PRIMARY KEY(guild,server,event_id));
+  PRAGMA user_version=3; COMMIT;`)
+  if(!db.prepare('PRAGMA table_info(servers)').all().some(c=>c.name==='active'))db.exec('ALTER TABLE servers ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
   const run=(sql,...args)=>db.prepare(sql).run(...args), get=(sql,...args)=>db.prepare(sql).get(...args), all=(sql,...args)=>db.prepare(sql).all(...args)
   function tx(fn){db.exec('BEGIN IMMEDIATE');try{const result=fn();db.exec('COMMIT');return result}catch(e){db.exec('ROLLBACK');throw e}}
   function server(g,s){scope(g,s);if(!get('SELECT 1 FROM servers WHERE guild=? AND server=?',g,s))throw Error('Unknown server')}
   const hash=(g,s,code)=>createHmac('sha256',secret).update('link\0'+g+'\0'+s+'\0'+code).digest('hex')
   const log=(g,s,a,action,subject)=>run('INSERT INTO audit VALUES(?,?,?,?,?,?,?)',randomUUID(),g,s,a,action,subject,now())
-  function register(g,s){scope(g,s);run('INSERT OR IGNORE INTO servers VALUES(?,?)',g,s)}
+  function register(g,s,active=true){scope(g,s);run('INSERT INTO servers(guild,server,active) VALUES(?,?,?) ON CONFLICT(guild,server) DO UPDATE SET active=excluded.active',g,s,active?1:0)}
   function linked(g,i){if(!GUILD.test(g))throw Error('Invalid guild');return get('SELECT discord,created FROM links WHERE guild=? AND identity=?',g,identity(i))||null}
   function issue(g,s,i,session){
     server(g,s);identity(i);text(session,100)
@@ -106,7 +108,7 @@ function createSecurityStore({file,secret,now=Date.now}){
       const c=getCase(g,id)
       if(!c||c.state!=='PENDING_APPROVAL'||c.actor===actor||(c.expires!==null&&c.expires<=now()))throw Error('Case cannot be approved')
       if(!localTypes.has(c.type)||!['MINECRAFT_SERVER','GUILD_MINECRAFT'].includes(c.scope))throw Error('Enforcement type not implemented')
-      const targets=c.scope==='MINECRAFT_SERVER'?[{server:c.server}]:all('SELECT server FROM servers WHERE guild=?',g)
+      const targets=c.scope==='MINECRAFT_SERVER'?[{server:c.server}]:all('SELECT server FROM servers WHERE guild=? AND active=1',g)
       for(const target of targets)run("INSERT INTO deliveries VALUES(?,?,?,1,'APPLY','PENDING',NULL)",id,g,target.server)
       run("UPDATE cases SET state='PENDING_ENFORCEMENT' WHERE guild=? AND id=?",g,id)
       log(g,c.server,actor,'CASE_APPROVED',id)
@@ -147,13 +149,42 @@ function createSecurityStore({file,secret,now=Date.now}){
     return run("UPDATE cases SET state='EXPIRED' WHERE expires IS NOT NULL AND expires<=? AND state IN ('PENDING_APPROVAL','PENDING_ENFORCEMENT','PARTIAL','ACTIVE')",now()).changes
   }
   function getCase(g,id){if(!GUILD.test(g)||typeof id!=='string'||!ID.test(id))throw Error('Invalid case');return get('SELECT * FROM cases WHERE guild=? AND id=?',g,id)||null}
+  function findDiscord(g,d){
+    if(!GUILD.test(g))throw Error('Invalid guild');discord(d)
+    return get('SELECT identity,discord,created FROM links WHERE guild=? AND discord=?',g,d)||null
+  }
+  function listCases(g,s,limit=10){
+    server(g,s);if(!Number.isInteger(limit)||limit<1||limit>50)throw Error('Invalid limit')
+    return all('SELECT * FROM cases WHERE guild=? AND (server=? OR scope=?) ORDER BY created DESC,id DESC LIMIT ?',g,s,'GUILD_MINECRAFT',limit)
+  }
+  function getEvent(g,s,id){
+    server(g,s);if(typeof id!=='string'||!ID.test(id))throw Error('Invalid event ID')
+    return get('SELECT * FROM evidence WHERE guild=? AND server=? AND id=?',g,s,id)||null
+  }
+  function unnotified(g,s,limit=10){
+    server(g,s);if(!Number.isInteger(limit)||limit<1||limit>25)throw Error('Invalid limit')
+    return all("SELECT e.* FROM evidence e LEFT JOIN alert_receipts a ON a.guild=e.guild AND a.server=e.server AND a.event_id=e.id WHERE e.guild=? AND e.server=? AND a.event_id IS NULL AND e.kind IN ('OP_STATUS_CHANGED','SENSITIVE_COMMAND_ATTEMPT','BLOCK_ACTIVITY_THRESHOLD') ORDER BY e.at,e.id LIMIT ?",g,s,limit)
+  }
+  function markAlert(g,s,id,message){
+    if(!getEvent(g,s,id))throw Error('Unknown event');discord(message)
+    run('INSERT OR IGNORE INTO alert_receipts VALUES(?,?,?,?)',g,s,id,message)
+  }
   function recordEvent(g,s,event){
     server(g,s)
     if(!event||typeof event.id!=='string'||!ID.test(event.id)||!Number.isSafeInteger(event.at)||event.at<0||event.at>now()+120000)throw Error('Invalid event')
     const kind=text(event.kind,60),i=event.identity==null?null:identity(event.identity)
     // Explicit narrow schema: avoid logging arbitrary payloads, IPs or command arguments.
     const safe={detail:text(event.detail,1000),source:text(event.source,60)}
-    return run('INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?,?,?,?)',g,s,event.id,event.at,kind,i,i?linked(g,i)?.discord||null:null,JSON.stringify(safe)).changes===1
+    return tx(()=>{
+      // At-event identity association, not whichever account happens to be linked when a delayed event arrives.
+      const historical=i?get("SELECT discord FROM link_history WHERE guild=? AND identity=? AND at<=? AND action='LINK' ORDER BY at DESC LIMIT 1",g,i,event.at):null
+      const added=run('INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?,?,?,?)',g,s,event.id,event.at,kind,i,historical?.discord||null,JSON.stringify(safe)).changes===1
+      if(added&&kind==='AUTHENTICATED_NETWORK'&&i){
+        if(typeof event.fingerprint!=='string'||! /^[a-f0-9]{64}$/.test(event.fingerprint))throw Error('Invalid network observation')
+        run('INSERT INTO networks VALUES(?,?,?,?) ON CONFLICT(guild,identity,fingerprint) DO UPDATE SET last_seen=MAX(last_seen,excluded.last_seen)',g,i,event.fingerprint,event.at)
+      }
+      return added
+    })
   }
   function events(g,s,limit=50){server(g,s);if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid page size');return all('SELECT * FROM evidence WHERE guild=? AND server=? ORDER BY at DESC,id DESC LIMIT ?',g,s,limit)}
   // Caller passes only a keyed, guild-scoped fingerprint from authenticated login.
@@ -168,6 +199,6 @@ function createSecurityStore({file,secret,now=Date.now}){
     return {matches:row.matches,commonOwnershipConfirmed:false}
   }
   function prune(){run('DELETE FROM challenges WHERE expires<=?',now());run('DELETE FROM networks WHERE last_seen<?',now()-90*86400000)}
-  return {register,linked,issue,claim,pendingClaim,confirm,createCase,getCase,approve,revoke,pending,acknowledge,expire,recordEvent,events,observeNetwork,compare,prune,close:()=>db.close()}
+  return {register,linked,findDiscord,issue,claim,pendingClaim,confirm,createCase,getCase,listCases,approve,revoke,pending,acknowledge,expire,recordEvent,getEvent,events,unnotified,markAlert,observeNetwork,compare,prune,close:()=>db.close()}
 }
 module.exports={createSecurityStore,duration,identity}
