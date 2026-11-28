@@ -37,6 +37,9 @@ public final class OrionBridge extends JavaPlugin {
     private ControlEndpoint control;
     private VerificationGate verification;
     private AuthenticatedIdentity identities;
+    private OrionGuard guard;
+    private AutoCloseable worldEditGuard,luckPermsAudit;
+    OrionGuard guard(){return guard;}
     AuthenticatedIdentity identities(){return identities;}
     void main(Runnable action){if(org.bukkit.Bukkit.isPrimaryThread())action.run();else getServer().getScheduler().runTask(this,action);}
     private volatile Session session;
@@ -82,8 +85,13 @@ public final class OrionBridge extends JavaPlugin {
                     if(key.equals(settings.token())||key.equals(cfg.getString("audit.signing-key","")))throw new IllegalArgumentException("Control key must be distinct");
                     AuditAuth auth=new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),key);
                     // Scope is shared with the audit feed, signing credentials are not.
-                    moderation=new LocalModeration(this,cfg);control=new ControlEndpoint(auth,moderation,verification);
+                    moderation=new LocalModeration(this,cfg);control=new ControlEndpoint(auth,moderation,verification,this);
                 }catch(Exception e){getLogger().severe("Moderation control unavailable; check configuration and sanction storage. No remote enforcement is available.");}
+            }
+            if(settings.mode().equals("pull")&&cfg.getBoolean("guard.enabled",false)){
+                guard=new OrionGuard(this,cfg,verification,moderation,audit);
+                if(getServer().getPluginManager().isPluginEnabled("WorldEdit")||getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit"))try{worldEditGuard=new WorldEditGuard(guard);}catch(LinkageError|RuntimeException e){getLogger().severe("WorldEdit/FAWE guard hook unavailable; command guard remains active.");}
+                if(getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{luckPermsAudit=new LuckPermsAudit(this,guard);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms audit hook unavailable.");}
             }
             apply(settings);
         }
@@ -183,6 +191,12 @@ public final class OrionBridge extends JavaPlugin {
             if(verification!=null){verification.close();verification=null;getLogger().warning("Verification temporarily disabled by console; restart reapplies configuration.");sender.sendMessage("Verification disabled until restart.");}
             else sender.sendMessage("No active verification gate. Correct configuration and restart if initialization failed.");
             return true;
+        }
+        if(args.length==1&&args[0].equalsIgnoreCase("status")&&sender.hasPermission("orionbridge.admin")){
+            sender.sendMessage("OrionBridge: telemetry="+(session!=null)+" audit="+(audit!=null)+" verification="+(verification!=null)+" moderation="+(moderation!=null)+" guard="+(guard!=null)+" WorldEdit="+(worldEditGuard!=null)+" LuckPerms="+(luckPermsAudit!=null));return true;
+        }
+        if(args.length==2&&args[0].equalsIgnoreCase("lockdown")&&sender instanceof org.bukkit.command.ConsoleCommandSender&&guard!=null){
+            try{guard.lockdown(args[1].equalsIgnoreCase("off")?0:System.currentTimeMillis()+Math.multiplyExact(Long.parseLong(args[1]),60000L),"console");sender.sendMessage("Lockdown updated.");}catch(RuntimeException e){sender.sendMessage("Usage: ob lockdown <1-60 minutes|off>");}return true;
         }
         if(sender instanceof Player player&&verification!=null&&verification.playerCommand(player,args))return true;
         if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob account | /ob link | /ob reload");return true;}
@@ -330,6 +344,9 @@ public final class OrionBridge extends JavaPlugin {
     @Override public void onDisable() {
         stopSession();
         if(audit!=null){audit.close();audit=null;}
+        if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}
+        if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}
+        if(guard!=null){guard.close();guard=null;}
         if(verification!=null){verification.close();verification=null;}
         if(moderation!=null){moderation.close();moderation=null;}control=null;
     }

@@ -7,7 +7,7 @@ import java.util.*;
 
 /** Each immutable case is independently enforced. Revisions prevent stale apply after revoke. */
 final class SanctionState {
-    enum Kind {MUTE,FREEZE,BUILD_RESTRICTION,QUARANTINE,TEMP_BAN,PERMANENT_BAN}
+    enum Kind {MUTE,FREEZE,BUILD_RESTRICTION,QUARANTINE,TEMP_BAN,PERMANENT_BAN,WORLDEDIT_RESTRICTION,COMMAND_RESTRICTION,WARNING}
     record Case(UUID id,long revision,String identity,Kind kind,long expiry,boolean revoked,String reason) {
         boolean active(long now){return !revoked&&(expiry==0||expiry>now);}
     }

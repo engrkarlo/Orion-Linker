@@ -44,10 +44,11 @@ final class SecurityAudit implements Listener,AutoCloseable {
         String id=identities.resolve(p);
         return id==null?"null":OrionBridge.quote(id);
     }
-    private void emit(Player p,String kind,String detail){
+    private void emit(Player p,String kind,String detail){external(kind,identities.resolve(p),detail,"Paper");}
+    void external(String kind,String identity,String detail,String source){
         UUID id=UUID.randomUUID();
         String safe=detail.replaceAll("[\\p{Cntrl}]"," ");if(safe.length()>1000)safe=safe.substring(0,1000);
-        journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+identity(p)+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":\"Paper\"}");
+        journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+(identity==null?"null":OrionBridge.quote(identity))+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":"+OrionBridge.quote(source)+"}");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();ops.put(p.getUniqueId(),p.isOp());emit(p,"JOIN","Player joined: "+p.getName()+"; operator="+p.isOp());}
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());identities.forget(p.getUniqueId());}

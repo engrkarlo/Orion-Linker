@@ -4,13 +4,16 @@ main: io.github.engrkarlo.orionbridge.OrionBridge
 api-version: '26.3'
 description: Authenticated telemetry, experimental identity and security bridge for OrionBot.
 author: Karlow
-softdepend: [SkinsRestorer, floodgate, AuthMe, Geyser-Spigot]
+softdepend: [SkinsRestorer, floodgate, AuthMe, Geyser-Spigot, LuckPerms, WorldEdit, FastAsyncWorldEdit, CoreProtect]
 permissions:
   orionbridge.hide:
     description: Exclude this player from the bridge roster and counts.
     default: false
   orionbridge.reload:
     description: Reload OrionBridge configuration and connection.
+    default: op
+  orionbridge.admin:
+    description: View bridge diagnostics.
     default: op
 commands:
   ob:

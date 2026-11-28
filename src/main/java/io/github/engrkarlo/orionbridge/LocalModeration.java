@@ -39,6 +39,7 @@ final class LocalModeration implements Listener,AutoCloseable {
         });}catch(RuntimeException ignored){/* The persisted sanction is checked on the next event/login. */}
         return result;
     }
+    boolean denied(UUID player,SanctionState.Kind... kinds){return open.get()&&state.has(online.get(player),System.currentTimeMillis(),kinds);}
     private boolean has(Player p,SanctionState.Kind... kinds){return open.get()&&state.has(online.get(p.getUniqueId()),System.currentTimeMillis(),kinds);}
     private boolean frozen(Player p){return has(p,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN);}
     private boolean build(Player p){return frozen(p)||has(p,SanctionState.Kind.BUILD_RESTRICTION);}
@@ -65,7 +66,7 @@ final class LocalModeration implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void click(InventoryClickEvent e){if(e.getWhoClicked() instanceof Player p&&frozen(p))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drag(InventoryDragEvent e){if(e.getWhoClicked() instanceof Player p&&frozen(p))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void chat(AsyncChatEvent e){if(frozen(e.getPlayer())||has(e.getPlayer(),SanctionState.Kind.MUTE))e.setCancelled(true);}
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void command(PlayerCommandPreprocessEvent e){if(frozen(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void command(PlayerCommandPreprocessEvent e){if(frozen(e.getPlayer())||has(e.getPlayer(),SanctionState.Kind.COMMAND_RESTRICTION))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageByEntityEvent e){
         if(e.getDamager() instanceof Player p&&frozen(p))e.setCancelled(true);
         if(e.getDamager() instanceof org.bukkit.entity.Projectile projectile&&projectile.getShooter() instanceof Player p&&frozen(p))e.setCancelled(true);
