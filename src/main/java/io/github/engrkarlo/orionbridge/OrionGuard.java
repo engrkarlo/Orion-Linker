@@ -130,14 +130,16 @@ final class OrionGuard implements Listener,AutoCloseable {
         for(var region:protectedRegions.getOrDefault(world,List.of()))if(region.overlaps(x,y,z,ex,ey,ez))return true;
         return false;
     }
-    boolean entityEdit(UUID player){return editProfile(player).entityTasks();}
-    boolean scopedEdit(UUID player,String world,int x,int y,int z,boolean biome,boolean entity){var op=entity?EditScope.Operation.ENTITY:biome?EditScope.Operation.BIOME:EditScope.Operation.BLOCK;var task=gate==null?null:gate.task(player);return (task==null||task.permits(world,op,System.currentTimeMillis()))&&editProfile(player).scope().permits(world,x,y,z,op);}
     private static int clamp(int n,int low,int high){return Math.max(low,Math.min(high,n));}
     boolean open(){return open;}
     void worldEditReady(){worldEditReady=true;}
     @EventHandler public void pluginDisabled(org.bukkit.event.server.PluginDisableEvent e){if(Set.of("WorldEdit","FastAsyncWorldEdit").contains(e.getPlugin().getName()))worldEditReady=false;}
-    Profile profile(UUID id){return gate!=null&&gate.task(id)!=null?ORDINARY:editProfile(id);}
-    private Profile editProfile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
+    private VerificationGate.EditAuthorization editAuth(UUID id){
+        return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?null:gate.editAuthorization(id);
+    }
+    Profile profile(UUID id){var a=editAuth(id);return a==null||a.task()!=null?ORDINARY:profiles.getOrDefault(a.profile(),ORDINARY);}
+    private Profile editProfile(UUID id){var a=editAuth(id);return a==null?ORDINARY:profiles.getOrDefault(a.profile(),ORDINARY);}
+    VerificationGate.EditAuthorization beginEdit(UUID id){return editAuth(id);}
     String identity(UUID id){return gate==null?null:gate.linkedIdentity(id);}
     boolean staffChat(UUID id){return !frozen(id)&&profile(id).staffChat();}
     boolean profileStaffChat(String name){return profiles.getOrDefault(name,ORDINARY).staffChat();}
@@ -253,10 +255,16 @@ final class OrionGuard implements Listener,AutoCloseable {
     boolean enforceEdits(){return blockEdits;}
     boolean allowNonPlayerEdits(){return allowNonPlayerEdits;}
     boolean reserveNonPlayerEdit(AtomicInteger used){return open&&worldEditReady&&allowNonPlayerEdits&&!lockdown()&&GuardBudget.operation(used,nonPlayerOperation)&&editBudget.reserve(NON_PLAYER,System.nanoTime(),nonPlayerMinute);}
-    boolean reserveEdit(UUID player,String world,AtomicInteger used){
-        int max=operationLimit(player,world);
-        if(!GuardBudget.operation(used,max)||!editBudget.reserve(player,System.nanoTime(),editProfile(player).minuteLimit()))return false;
-        var task=gate==null?null:gate.task(player);return task==null||taskBudget.reserve(identity(player),task,System.currentTimeMillis());
+    boolean reserveScopedEdit(UUID player,VerificationGate.EditAuthorization initial,String world,int x,int y,int z,boolean biome,boolean entity,AtomicInteger used){
+        if(initial==null||!initial.equals(editAuth(player))||operationLimit(player,world)<=0)return false;
+        var profile=profiles.getOrDefault(initial.profile(),ORDINARY);
+        var task=initial.task();long now=System.currentTimeMillis();
+        var op=entity?EditScope.Operation.ENTITY:biome?EditScope.Operation.BIOME:EditScope.Operation.BLOCK;
+        if(entity&&!profile.entityTasks()||!profile.scope().permits(world,x,y,z,op)||task!=null&&!task.permits(world,op,now))return false;
+        int limit=Math.min(profile.editLimit(),task==null?Integer.MAX_VALUE:task.budget());
+        if(!GuardBudget.operation(used,limit)||!editBudget.reserve(player,System.nanoTime(),profile.minuteLimit()))return false;
+        if(task!=null&&!taskBudget.reserve(initial.identity(),task,now))return false;
+        return initial.equals(editAuth(player))&&operationLimit(player,world)>0;
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void teleport(PlayerTeleportEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void bucket(PlayerBucketEmptyEvent e){if(denied(e.getPlayer(),GuardContainment.Type.BUILD_RESTRICTION))e.setCancelled(true);}

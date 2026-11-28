@@ -21,13 +21,14 @@ final class WorldEditGuard implements AutoCloseable {
         if(event.getStage()!=EditSession.Stage.BEFORE_CHANGE||!guard.enforceEdits())return;
         var actor=event.getActor();
         UUID player=actor instanceof com.sk89q.worldedit.entity.Player?actor.getUniqueId():null;
+        var authorization=player==null?null:guard.beginEdit(player);
         String world=event.getWorld()==null?"unknown":event.getWorld().getName();
         event.setExtent(new AbstractDelegateExtent(event.getExtent()){
             private final AtomicInteger attempted=new AtomicInteger();
             private final AtomicBoolean reported=new AtomicBoolean(),authorized=new AtomicBoolean();
             private boolean permitted(BlockVector3 location,boolean biome,boolean entity){
                 boolean accepted=!guard.protectedEdit(world,location.x(),location.y(),location.z(),biome)
-                    &&(player==null?guard.reserveNonPlayerEdit(attempted):(!entity||guard.entityEdit(player))&&guard.scopedEdit(player,world,location.x(),location.y(),location.z(),biome,entity)&&guard.reserveEdit(player,world,attempted));
+                    &&(player==null?guard.reserveNonPlayerEdit(attempted):guard.reserveScopedEdit(player,authorization,world,location.x(),location.y(),location.z(),biome,entity,attempted));
                 if(!accepted){
                     if(reported.compareAndSet(false,true))guard.rule(player,player==null?null:guard.identity(player),"WORLDEDIT_BLOCKED","WorldEdit "+(entity?"entity":biome?"biome":"block")+" mutation blocked; world="+world+"; position="+location+"; reserved attempts="+attempted.get()+"; prior changes may already exist","WorldEdit/FAWE");
                     return false;
