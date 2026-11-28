@@ -37,6 +37,17 @@ final class VerificationState {
         if(detached.size()>=MAX_DETACHED){pruneDetached(now);if(detached.size()>=MAX_DETACHED)detached.remove(detached.keySet().iterator().next());}
         detached.put(player,s);
     }
+    // Transfer only unexpired challenges. New sessions require fresh signed
+    // authorization; old clicks, confirmations and privilege leases cannot survive.
+    VerificationState forReload(long now){
+        var next=new VerificationState();
+        for(var s:detached.values())if(resumable(s,now)&&next.detached.size()<MAX_DETACHED)next.detached.put(s.player(),s);
+        for(var s:sessions.values())if(resumable(s,now)){
+            if(next.detached.size()>=MAX_DETACHED)next.detached.remove(next.detached.keySet().iterator().next());
+            next.detached.put(s.player(),s);
+        }
+        return next;
+    }
     void clear(){sessions.clear();detached.clear();}
     List<Session> snapshot(){return List.copyOf(sessions.values());}
     boolean restricted(UUID player,long now){Session s=get(player);return s==null||!s.verified(now);}

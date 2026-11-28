@@ -16,6 +16,8 @@ final class PullHttp implements AutoCloseable {
     private final ThreadPoolExecutor workers;
     private final byte[] authorization;
     private volatile Snapshot latest;
+    private final RequestAdmission admission=new RequestAdmission();
+    boolean quiesce(){return admission.quiesce();}
     private record Snapshot(byte[] json,long sentAt){}
     PullHttp(String bind,int port,String token,AuditEndpoint audit,ControlEndpoint control) throws IOException {
         authorization=("Bearer "+token).getBytes(StandardCharsets.UTF_8);
@@ -24,6 +26,7 @@ final class PullHttp implements AutoCloseable {
         server.setExecutor(workers);
         server.createContext("/v1/snapshot",this::handle);
         if(audit!=null||control!=null)server.createContext("/v2/",ex->{
+            if(!admission.enter()){try{ex.getResponseHeaders().set("Retry-After","2");ex.sendResponseHeaders(503,-1);}finally{ex.close();}return;}
             try{
                 ex.getResponseHeaders().set("Cache-Control","no-store");
                 ex.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");
@@ -31,7 +34,7 @@ final class PullHttp implements AutoCloseable {
                 if(java.util.Set.of("/v2/actions","/v2/verification","/v2/verification/batch","/v2/policy","/v2/chat","/v2/recovery","/v2/health","/v2/ranks").contains(ex.getRequestURI().getRawPath())&&control!=null)control.handle(ex);
                 else if(audit!=null)audit.handle(ex);
                 else ex.sendResponseHeaders(404,-1);
-            }finally{ex.close();}
+            }finally{try{ex.close();}finally{admission.leave();}}
         });
         try{server.start();}catch(RuntimeException e){server.stop(0);workers.shutdownNow();throw e;}
     }

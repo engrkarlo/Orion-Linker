@@ -10,12 +10,12 @@ import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 
-/** One root connection file plus independent, restart-only feature files.
+/** One root connection file plus independent, independent feature files.
  * The root version is the migration commit marker, written last. */
 final class CategoryConfig {
     static final int VERSION=15;
     static final List<String> CATEGORIES=List.of("audit","control","verification","correlation","guard","roles","chat","recovery");
-    static final List<String> MENUS=List.of("java-dialogs","java-inventory","bedrock-forms","dashboard");
+    static final List<String> MENUS=List.of("java-dialogs","java-inventory","bedrock-forms","dashboard","help");
     private CategoryConfig(){}
     static final class LayoutException extends IOException{LayoutException(String message){super(message);}}
     static YamlConfiguration resource(JavaPlugin plugin,String name)throws Exception{
@@ -44,6 +44,7 @@ final class CategoryConfig {
         var combined=load(directory,defaults,categories);
         if(Files.isSymbolicLink(directory.resolve("menus")))throw new LayoutException("Invalid menus directory");
         for(String name:MENUS)prepareMenu(directory,name,resource(plugin,"menus/"+name+".yml"));
+        prepareTheme(directory.resolve("messages.yml"),"messages",resource(plugin,"messages.yml"));
         return combined;
     }
     static boolean migrate(Path directory,YamlConfiguration defaults,Map<String,YamlConfiguration> categories)throws Exception{
@@ -98,7 +99,9 @@ final class CategoryConfig {
         return combined;
     }
     static void prepareMenu(Path directory,String name,YamlConfiguration defaults)throws Exception{
-        Path file=directory.resolve("menus").resolve(name+".yml");
+        prepareTheme(directory.resolve("menus").resolve(name+".yml"),name,defaults);
+    }
+    static void prepareTheme(Path file,String name,YamlConfiguration defaults)throws Exception{
         if(Files.notExists(file,LinkOption.NOFOLLOW_LINKS)){save(file,defaults);return;}
         var current=read(file);
         if(current.contains("theme-version",true)&&!current.isInt("theme-version"))throw new LayoutException("Invalid theme version in "+name);
@@ -108,7 +111,7 @@ final class CategoryConfig {
         merge(current,defaults,true);current.set("theme-version",to);
         backup(file,"v"+from);save(file,current);
     }
-    private static boolean same(ConfigurationSection a,ConfigurationSection b){
+    static boolean same(ConfigurationSection a,ConfigurationSection b){
         if(!a.getKeys(false).equals(b.getKeys(false)))return false;
         for(String key:a.getKeys(false)){
             if(a.isConfigurationSection(key)||b.isConfigurationSection(key)){
@@ -123,7 +126,7 @@ final class CategoryConfig {
             to.setComments(key,from.getComments(key));to.setInlineComments(key,from.getInlineComments(key));
         }
     }
-    private static void merge(ConfigurationSection current,ConfigurationSection defaults,boolean comments)throws IOException{
+    static void merge(ConfigurationSection current,ConfigurationSection defaults,boolean comments)throws IOException{
         for(String key:defaults.getKeys(false)){
             if(defaults.isConfigurationSection(key)){
                 boolean existed=current.contains(key,true);

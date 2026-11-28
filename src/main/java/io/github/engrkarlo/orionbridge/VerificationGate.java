@@ -18,7 +18,8 @@ import java.nio.charset.StandardCharsets;
 
 final class VerificationGate implements Listener,AutoCloseable {
     private final OrionBridge plugin;
-    private final VerificationState state=new VerificationState();
+    private final VerificationState state;
+    VerificationState reloadState(){return state.forReload(System.currentTimeMillis());}
     private final AuthenticatedIdentity identities;
     private final VerificationMenus menus;
     private final VerificationLobby lobby;
@@ -58,7 +59,9 @@ final class VerificationGate implements Listener,AutoCloseable {
     }
     VerificationState.Session session(UUID player){return active?state.get(player):null;}
     boolean authorized(UUID player){return linkedIdentity(player)!=null;}
-    VerificationGate(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
+    VerificationGate(OrionBridge plugin,YamlConfiguration cfg)throws Exception{this(plugin,cfg,null);}
+    VerificationGate(OrionBridge plugin,YamlConfiguration cfg,VerificationState previous)throws Exception{
+        this.state=previous==null?new VerificationState():previous.forReload(System.currentTimeMillis());
         this.plugin=plugin;identities=plugin.identities();
         invite=cfg.getString("verification.discord-invite","");lease=Math.max(15,Math.min(60,cfg.getInt("verification.lease-seconds",60)))*1000L;
         reopenSeconds=Math.max(0,Math.min(300,cfg.getInt("verification.reopen-seconds",15)));
@@ -79,6 +82,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         var current=state.get(p.getUniqueId());
         return active&&p.isOnline()&&current!=null&&Objects.equals(current.identity(),identities.fresh(p))&&current.session().equals(old.session())&&Objects.equals(current.request(),old.request())&&Objects.equals(current.claimant(),old.claimant());
     }
+    void refreshAfterReload(){for(Player p:plugin.getServer().getOnlinePlayers())if(restricted(p))show(p);}
     private void show(Player p){
         if(!active||!p.isOnline())return;
         var s=state.expireChallenge(p.getUniqueId(),System.currentTimeMillis());if(s==null)return;
@@ -226,7 +230,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         String cmd=parts[0].toLowerCase(Locale.ROOT);
         PluginCommand resolved=plugin.getServer().getPluginCommand(cmd);
         if(resolved!=null&&resolved.getPlugin()==plugin&&resolved.getName().equals("ob")){
-            return parts.length==1||parts.length==2&&Set.of("link","account","help").contains(parts[1].toLowerCase(Locale.ROOT))||parts.length==3&&parts[1].equalsIgnoreCase("confirm")&&parts[2].matches("[a-fA-F0-9-]{36}");
+            return parts.length==1||parts.length==2&&Set.of("link","account","help").contains(parts[1].toLowerCase(Locale.ROOT))||parts.length==3&&parts[1].equalsIgnoreCase("help")||parts.length==3&&parts[1].equalsIgnoreCase("confirm")&&parts[2].matches("[a-fA-F0-9-]{36}");
         }
         var s=state.get(p.getUniqueId());
         return resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));

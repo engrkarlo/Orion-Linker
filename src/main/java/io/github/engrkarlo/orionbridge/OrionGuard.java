@@ -24,17 +24,17 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final Set<String> protectedWorlds;
     private record ProtectedRegion(int minX,int minY,int minZ,int maxX,int maxY,int maxZ){boolean overlaps(int x,int y,int z,int endX,int endY,int endZ){return x<=maxX&&endX>=minX&&y<=maxY&&endY>=minY&&z<=maxZ&&endZ>=minZ;}}
     private final Map<String,List<ProtectedRegion>> protectedRegions;
-    private final GuardBudget editBudget=new GuardBudget();
+    private final GuardBudget editBudget;
     private final TaskBudget taskBudget;
     private final DurableLockdown lockdownState;
     private record AlertKey(UUID player,String kind){}
-    private final Map<AlertKey,Long> lastAlert=new ConcurrentHashMap<>();
+    private final Map<AlertKey,Long> lastAlert;
     private final GuardContainment containment;
     private final Map<String,GuardContainment.Rule> rules;
-    private final Map<UUID,Counter> blocks=new HashMap<>();
-    private final Map<UUID,Counter> containers=new HashMap<>();
+    private final Map<UUID,Counter> blocks;
+    private final Map<UUID,Counter> containers;
 
-    private final Counter joins=new Counter(),entities=new Counter();
+    private final Counter joins,entities;
     private final int ordinaryBlocks,joinLimit,entityLimit,containerLimit,containSeconds,lockSeconds,nonPlayerOperation,nonPlayerMinute;
     private static final UUID NON_PLAYER=new UUID(0L,0L);
     private final boolean allowNonPlayerEdits,blockCommands,blockEdits,strictCommands;
@@ -46,11 +46,16 @@ final class OrionGuard implements Listener,AutoCloseable {
         long start;int count;
         int add(long now,int amount,int seconds){if(now-start>=seconds*1000L||now<start){start=now;count=0;}count=Math.min(Integer.MAX_VALUE-amount,count)+amount;return count;}
     }
-    OrionGuard(OrionBridge plugin,YamlConfiguration config,VerificationGate gate,LocalModeration moderation,SecurityAudit audit){
+    OrionGuard(OrionBridge plugin,YamlConfiguration config,VerificationGate gate,LocalModeration moderation,SecurityAudit audit){this(plugin,config,gate,moderation,audit,null);}
+    OrionGuard(OrionBridge plugin,YamlConfiguration config,VerificationGate gate,LocalModeration moderation,SecurityAudit audit,OrionGuard previous){
         this.plugin=plugin;this.gate=gate;this.moderation=moderation;this.audit=audit;
-        taskBudget=new TaskBudget(plugin.getDataFolder().toPath().resolve("guard-task-budgets"));
-        lockdownState=new DurableLockdown(plugin.getDataFolder().toPath().resolve("guard-lockdown.state"),System.currentTimeMillis());
-        containment=new GuardContainment(plugin.getDataFolder().toPath().resolve("guard-containment"),System.currentTimeMillis());
+        taskBudget=previous==null?new TaskBudget(plugin.getDataFolder().toPath().resolve("guard-task-budgets")):previous.taskBudget;
+        lockdownState=previous==null?new DurableLockdown(plugin.getDataFolder().toPath().resolve("guard-lockdown.state"),System.currentTimeMillis()):previous.lockdownState;
+        containment=previous==null?new GuardContainment(plugin.getDataFolder().toPath().resolve("guard-containment"),System.currentTimeMillis()):previous.containment;
+        editBudget=previous==null?new GuardBudget():previous.editBudget;
+        lastAlert=previous==null?new ConcurrentHashMap<>():previous.lastAlert;
+        blocks=previous==null?new HashMap<>():previous.blocks;containers=previous==null?new HashMap<>():previous.containers;
+        joins=previous==null?new Counter():previous.joins;entities=previous==null?new Counter():previous.entities;
         Map<String,Profile> loaded=new HashMap<>();
         var section=config.getConfigurationSection("guard.profiles");
         if(section!=null)for(String name:section.getKeys(false)){
@@ -158,7 +163,8 @@ final class OrionGuard implements Listener,AutoCloseable {
     private void evidence(String kind,String id,String detail,String source){if(audit!=null)audit.external(kind,id,detail,source);}
     void external(String kind,String identity,String detail,String source){evidence(kind,identity,detail,source);}
     void attributed(String kind,String actor,String target,String detail,String source){if(audit!=null)audit.attributed(kind,actor,actor==null?"UNKNOWN":"REPORTED_ACTOR",target,detail,source);}
-    void rule(UUID player,String identity,String kind,String detail,String source){
+    synchronized void rule(UUID player,String identity,String kind,String detail,String source){
+        if(!open)return;
         var policy=rules.get(kind);
         if(policy==null||!policy.enabled())return;
         long now=System.currentTimeMillis();
@@ -292,5 +298,5 @@ final class OrionGuard implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drag(InventoryDragEvent e){if(e.getWhoClicked() instanceof Player p&&blocked(p)&&!VerificationMenus.owns(e.getView().getTopInventory())&&!DashboardMenus.owns(e.getView().getTopInventory()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void chat(io.papermc.paper.event.player.AsyncChatEvent e){if(frozen(e.getPlayer().getUniqueId()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageByEntityEvent e){if(e.getDamager() instanceof Player p&&blocked(p)||e.getDamager() instanceof org.bukkit.entity.Projectile projectile&&projectile.getShooter() instanceof Player shooter&&blocked(shooter))e.setCancelled(true);}
-    @Override public void close(){open=false;cleanup.cancel();storageCleanup.cancel();HandlerList.unregisterAll(this);lastAlert.clear();}
+    @Override public synchronized void close(){open=false;cleanup.cancel();storageCleanup.cancel();HandlerList.unregisterAll(this);}
 }

@@ -58,6 +58,13 @@ public final class OrionBridge extends JavaPlugin {
     private volatile Session session;
     private volatile long lastWarning;
     private org.bukkit.event.Listener verificationFallback;
+    private YamlConfiguration activeConfig;
+    private volatile java.util.Map<String,YamlConfiguration> themes=java.util.Map.of();
+    private volatile TextTheme messages=TextTheme.empty();
+    TextTheme messages(){return messages;}
+    YamlConfiguration theme(String name){return java.util.Objects.requireNonNull(themes.get(name));}
+    private OrionCommands commands;
+    private OrionGuard retainedGuard;
     private record Settings(String mode, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
     private static final class Session {
         final Settings settings;
@@ -82,17 +89,36 @@ public final class OrionBridge extends JavaPlugin {
         long started=System.nanoTime();
         YamlConfiguration startupConfig=null;
         boolean failed=false;
+        commands=new OrionCommands(this);
+        var command=getCommand("ob");if(command!=null){command.setExecutor(commands);command.setTabCompleter(commands);}
         try {
             var cfg=CategoryConfig.load(this);startupConfig=cfg;
-            Settings settings=readSettings();
+            var appearance=loadAppearance();setAppearance(appearance);
+            Settings settings=readSettings(cfg,true);
+            initialize(cfg,settings,null,false);
+            activeConfig=cfg;
+        }
+        catch(Exception|LinkageError e){failed=true;getLogger().warning("Bridge startup incomplete: "+safeError(e)+". Check configuration files.");if(verification==null&&(startupConfig==null||verifyRequested(startupConfig)))installVerificationFallback();}
+        startupBanner(startupConfig,failed,started);
+    }
+    private java.util.Map<String,YamlConfiguration> loadAppearance()throws Exception{
+        var directory=getDataFolder().toPath();var loaded=new java.util.LinkedHashMap<String,YamlConfiguration>();
+        for(String name:CategoryConfig.MENUS){String path="menus/"+name+".yml";var yaml=CategoryConfig.read(directory.resolve(path));CategoryConfig.merge(yaml,CategoryConfig.resource(this,path),false);loaded.put(name,yaml);}
+        var yaml=CategoryConfig.read(directory.resolve("messages.yml"));CategoryConfig.merge(yaml,CategoryConfig.resource(this,"messages.yml"),false);loaded.put("messages",yaml);
+        return java.util.Map.copyOf(loaded);
+    }
+    private void setAppearance(java.util.Map<String,YamlConfiguration> appearance){
+        themes=appearance;messages=new TextTheme(appearance.get("messages"));
+    }
+    private void initialize(YamlConfiguration cfg,Settings settings,VerificationState challengeState,boolean strict)throws Exception{
             identities=new AuthenticatedIdentity(this,cfg.getString("verification.authme-realm",""));
             if(settings.mode().equals("pull")&&cfg.getBoolean("audit.enabled",false)){
-                try{audit=new SecurityAudit(this,cfg);}catch(Exception e){getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
+                try{audit=new SecurityAudit(this,cfg);}catch(Exception e){if(strict)throw e;getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
             }
-            if(settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled",false)&&getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{roles=new LuckPermsRoles(this,cfg);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms role sync unavailable.");}
+            if(settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled",false)&&getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{roles=new LuckPermsRoles(this,cfg);}catch(LinkageError|RuntimeException e){if(strict)throw e;getLogger().warning("LuckPerms role sync unavailable.");}
             if(cfg.getBoolean("verification.enabled",false)&&cfg.getBoolean("verification.setup-complete",false)){
-                try{verification=new VerificationGate(this,cfg);}
-                catch(Exception e){getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");installVerificationFallback();}
+                try{verification=new VerificationGate(this,cfg,challengeState);}
+                catch(Exception e){if(strict)throw e;getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");installVerificationFallback();}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("control.enabled",false)){
                 try{
@@ -101,27 +127,61 @@ public final class OrionBridge extends JavaPlugin {
                     AuditAuth auth=new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),key);
                     // Scope is shared with the audit feed, signing credentials are not.
                     moderation=new LocalModeration(this,cfg);control=new ControlEndpoint(auth,moderation,verification,this);
-                }catch(Exception e){getLogger().severe("Moderation control unavailable; check configuration and sanction storage. No remote enforcement is available.");}
+                }catch(Exception e){if(strict)throw e;getLogger().severe("Moderation control unavailable; check configuration and sanction storage. No remote enforcement is available.");}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("guard.enabled",false)){
-                guard=new OrionGuard(this,cfg,verification,moderation,audit);
+                guard=new OrionGuard(this,cfg,verification,moderation,audit,retainedGuard);
                 if(getServer().getPluginManager().isPluginEnabled("WorldEdit")||getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit"))try{worldEditGuard=new WorldEditGuard(guard);guard.worldEditReady();}catch(LinkageError|RuntimeException e){getLogger().severe("WorldEdit/FAWE guard hook unavailable; edit commands will be denied while edit enforcement is enabled.");}
                 if(getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{luckPermsAudit=new LuckPermsAudit(this,guard);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms audit hook unavailable.");}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
-            if(settings.mode().equals("pull")&&cfg.getBoolean("recovery.enabled",false))try{recovery=new CoreProtectRecovery(this,cfg);}catch(ReflectiveOperationException|RuntimeException e){getLogger().warning("CoreProtect recovery unavailable; check plugin API.");}
+            if(settings.mode().equals("pull")&&cfg.getBoolean("recovery.enabled",false))try{recovery=new CoreProtectRecovery(this,cfg);}catch(ReflectiveOperationException|RuntimeException e){if(strict)throw e;getLogger().warning("CoreProtect recovery unavailable; check plugin API.");}
             dashboards=new DashboardMenus(this,cfg);
-            apply(settings);
-        }
-        catch(Exception e){failed=true;getLogger().warning("Bridge startup incomplete: "+safeError(e)+". Check config.yml and config/ files; restart Paper.");if(verification==null&&(startupConfig==null||verifyRequested(startupConfig)))installVerificationFallback();}
-        startupBanner(startupConfig,failed,started);
+            if(strict&&verifyRequested(cfg)&&control==null)throw new IllegalArgumentException("Verification requires signed control in Pull mode");
+            if(strict&&cfg.getBoolean("chat.enabled")&&(chat==null||control==null))throw new IllegalArgumentException("Chat requires active verification and signed control");
+            startSession(settings);
     }
-
+    private static boolean sameIdentityScope(YamlConfiguration a,YamlConfiguration b){
+        return a!=null&&b!=null&&java.util.List.of("audit.guild-id","audit.server-id","control.signing-key","verification.authme-realm").stream().allMatch(k->java.util.Objects.equals(a.get(k),b.get(k)));
+    }
+    enum ReloadResult{APPLIED,BUSY,UNCHANGED,RESTORED,FAILED}
+    ReloadResult reloadAll(){
+        var previous=activeConfig;var previousAppearance=themes;
+        Settings previousSettings=session==null?null:session.settings;
+        final YamlConfiguration next;final java.util.Map<String,YamlConfiguration> appearance;final Settings settings;
+        try{
+            next=CategoryConfig.load(this);appearance=loadAppearance();settings=readSettings(next,previousSettings==null);
+        }catch(Exception|LinkageError e){getLogger().warning("Configuration not applied: "+safeError(e));return ReloadResult.UNCHANGED;}
+        // Quiesce signed requests before closing their stores. Do not wait for
+        // workers that may themselves be waiting for the Minecraft main thread.
+        Session current=session;
+        if(current!=null&&current.pull!=null&&!current.pull.quiesce())return ReloadResult.BUSY;
+        VerificationState challenges=verification==null?null:verification.reloadState();
+        boolean compatible=sameIdentityScope(previous,next);
+        try{
+            stopServices();setAppearance(appearance);initialize(next,settings,compatible?challenges:null,true);
+            activeConfig=next;clearFallback();if(verification!=null)verification.refreshAfterReload();
+            return ReloadResult.APPLIED;
+        }catch(Exception|LinkageError failure){
+            getLogger().warning("Reload failed: "+safeError(failure)+"; restoring the previous runtime.");
+            stopServices();
+            if(previous!=null&&previousSettings!=null)try{
+                setAppearance(previousAppearance);initialize(previous,previousSettings,challenges,true);
+                activeConfig=previous;clearFallback();if(verification!=null)verification.refreshAfterReload();return ReloadResult.RESTORED;
+            }catch(Exception|LinkageError rollback){getLogger().severe("Previous runtime could not be restored: "+safeError(rollback));stopServices();}
+            if(!previousAppearance.isEmpty())setAppearance(previousAppearance);
+            activeConfig=null;installVerificationFallback();
+            // A failed rollback must not leave current players unrestricted.
+            for(Player player:java.util.List.copyOf(getServer().getOnlinePlayers()))player.kick(messages.render("verification.configuration-unavailable"));
+            return ReloadResult.FAILED;
+        }
+    }
+    private void clearFallback(){if(verificationFallback!=null){org.bukkit.event.HandlerList.unregisterAll(verificationFallback);verificationFallback=null;}}
     private void installVerificationFallback(){
         if(verificationFallback!=null)return;
         getLogger().severe("Configuration/verification unavailable; joins restricted. Restore configuration or use console ob verification-off temporarily.");
         verificationFallback=new org.bukkit.event.Listener(){
-            @org.bukkit.event.EventHandler public void login(org.bukkit.event.player.PlayerLoginEvent event){event.disallow(org.bukkit.event.player.PlayerLoginEvent.Result.KICK_OTHER,"OrionBridge configuration or verification unavailable. Contact staff.");}
+            @org.bukkit.event.EventHandler public void login(org.bukkit.event.player.PlayerLoginEvent event){event.disallow(org.bukkit.event.player.PlayerLoginEvent.Result.KICK_OTHER,net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(messages.render("verification.configuration-unavailable")));}
         };
         getServer().getPluginManager().registerEvents(verificationFallback,this);
     }
@@ -194,18 +254,17 @@ public final class OrionBridge extends JavaPlugin {
         section("05 / Startup summary");
         field("Local state",current==null?"INACTIVE":degraded?"DEGRADED · review messages above":"READY · local initialization complete",current==null?ChatColor.RED:degraded?ChatColor.YELLOW:ChatColor.GREEN);
         field("Elapsed",String.format(java.util.Locale.ROOT,"%.2f s",(System.nanoTime()-started)/1_000_000_000d),ChatColor.AQUA);
-        field("Diagnostics","ob status  ·  security config changes require restart",ChatColor.WHITE);
+        field("Diagnostics","ob status  ·  ob reload  ·  all configuration files",ChatColor.WHITE);
         if(verificationFallback!=null||verifyRequested(cfg))field("Emergency recovery","Console: ob verification-off",ChatColor.YELLOW);
         line(ChatColor.DARK_GRAY+CONSOLE_RULE);
     }
     private static boolean verifyRequested(YamlConfiguration cfg){return cfg!=null&&cfg.getBoolean("verification.enabled")&&cfg.getBoolean("verification.setup-complete");}
 
-    private static String safeError(Exception e){
+    private static String safeError(Throwable e){
         return e instanceof CategoryConfig.LayoutException||e instanceof IllegalArgumentException?e.getMessage():"Unable to read configuration or bind the listener";
     }
 
-    private Settings readSettings() throws Exception {
-        var cfg=CategoryConfig.readRoot(getDataFolder().toPath());
+    private Settings readSettings(YamlConfiguration cfg,boolean generateToken) throws Exception {
         String endpointText=cfg.getString("endpoint","").trim();
         String mode=cfg.getString("mode",endpointText.isEmpty()?"pull":"push").trim().toLowerCase(java.util.Locale.ROOT);
         if(!mode.equals("push")&&!mode.equals("pull"))throw new IllegalArgumentException("mode must be push or pull");
@@ -220,8 +279,9 @@ public final class OrionBridge extends JavaPlugin {
         if(port<1||port>65535||seconds<5||seconds>30)throw new IllegalArgumentException("Invalid port or interval (5–30 seconds)");
         String token=cfg.getString("token","").trim();
         if(mode.equals("pull")&&token.isEmpty()){
+            if(!generateToken)throw new IllegalArgumentException("Restore your existing pairing token before reload");
             byte[] secret=new byte[32];new SecureRandom().nextBytes(secret);
-            token=HexFormat.of().formatHex(secret);cfg.set("token",token);CategoryConfig.save(getDataFolder().toPath().resolve("config.yml"),cfg);
+            token=HexFormat.of().formatHex(secret);cfg.set("token",token);var root=CategoryConfig.readRoot(getDataFolder().toPath());root.set("token",token);CategoryConfig.save(getDataFolder().toPath().resolve("config.yml"),root);
             getLogger().info("Generated a pull token in config.yml. Keep it private.");
         }
         if(!token.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("Token must be 64 lowercase hexadecimal characters");
@@ -257,45 +317,16 @@ public final class OrionBridge extends JavaPlugin {
         if(old!=null)old.close();
     }
 
-    @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args){
-        if(args.length==1&&args[0].equalsIgnoreCase("verification-off")&&sender instanceof org.bukkit.command.ConsoleCommandSender){
-            if(verificationFallback!=null){org.bukkit.event.HandlerList.unregisterAll(verificationFallback);verificationFallback=null;sender.sendMessage("Verification startup fallback disabled until restart.");}
-            if(verification!=null){verification.close();verification=null;getLogger().warning("Verification temporarily disabled by console; restart reapplies configuration.");sender.sendMessage("Verification disabled until restart.");}
-            else sender.sendMessage("No active verification gate. Correct configuration and restart if initialization failed.");
-            return true;
-        }
-        if(args.length==1&&args[0].equalsIgnoreCase("status")&&sender.hasPermission("orionbridge.admin")){
-            sender.sendMessage("OrionBridge: telemetry="+(session!=null)+" audit="+(audit!=null)+" verification="+(verification!=null)+" moderation="+(moderation!=null)+" guard="+(guard!=null)+" WorldEdit="+(worldEditGuard!=null)+" LuckPerms="+(luckPermsAudit!=null));return true;
-        }
-        if(args.length==2&&args[0].equalsIgnoreCase("lockdown")&&sender instanceof org.bukkit.command.ConsoleCommandSender&&guard!=null){
-            try{guard.lockdown(args[1].equalsIgnoreCase("off")?0:System.currentTimeMillis()+Math.multiplyExact(Long.parseLong(args[1]),60000L),"console");sender.sendMessage("Lockdown updated.");}catch(java.io.UncheckedIOException e){sender.sendMessage("Lockdown update not persisted. Check Guard state storage.");}catch(RuntimeException e){sender.sendMessage("Usage: ob lockdown <1-60 minutes|off>");}return true;
-        }
-        if(sender instanceof Player player&&args.length>=2&&args[0].equalsIgnoreCase("staffchat")){
-            boolean sent=chat!=null&&chat.staff(player,String.join(" ",java.util.Arrays.copyOfRange(args,1,args.length)));
-            if(!sent)sender.sendMessage("Staff chat unavailable or not authorized.");return true;
-        }
-        if(sender instanceof Player player&&dashboards!=null){
-            String sub=args.length==0?"account":args[0].toLowerCase(java.util.Locale.ROOT);
-            if(sub.equals("admin")&&args.length==1){dashboards.adminMenu(player);return true;}
-            if(verification!=null&&verification.authorized(player.getUniqueId())){
-                if(java.util.Set.of("account","roles","punishments","report","appeal").contains(sub)&&args.length<=1){
-                    if(sub.equals("report"))dashboards.report(player);
-                    else if(sub.equals("appeal"))dashboards.appeal(player);
-                    else if(sub.equals("punishments"))dashboards.punishments(player,verification.linkedIdentity(player.getUniqueId()),false);
-                    else dashboards.account(player);
-                    return true;
-                }
-            }
-        }
-        if(sender instanceof Player player&&verification!=null&&verification.playerCommand(player,args))return true;
-        if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob account | /ob link | /ob reload");return true;}
-        if(sender instanceof Player player&&guard!=null&&(!guard.profile(player.getUniqueId()).commands().contains("orionbridge:ob-reload"))){sender.sendMessage("A trusted profile explicitly allowing orionbridge:ob-reload is required.");return true;}
-        if(!sender.hasPermission("orionbridge.reload")){sender.sendMessage("You do not have permission to reload OrionBridge.");return true;}
-        try {apply(readSettings());sender.sendMessage("OrionBridge reloaded ("+session.settings.mode()+").");}
-        catch(Exception e){sender.sendMessage("OrionBridge reload failed: "+safeError(e)+(session==null?". Bridge inactive.":". Previous settings restored."));}
-        return true;
+    boolean transportActive(){return session!=null;}
+    boolean editHookActive(){return worldEditGuard!=null;}
+    boolean permissionHookActive(){return luckPermsAudit!=null;}
+    DashboardMenus dashboards(){return dashboards;}
+    boolean releaseVerification(){
+        boolean released=verificationFallback!=null||verification!=null;
+        clearFallback();
+        if(verification!=null){verification.close();verification=null;}
+        return released;
     }
-
     static boolean validEndpoint(URI uri) {
         String host = uri.getHost(), scheme = uri.getScheme();
         if (host == null || uri.getUserInfo() != null || uri.getFragment() != null || uri.getQuery() != null) return false;
@@ -431,16 +462,19 @@ public final class OrionBridge extends JavaPlugin {
         }
     }
 
-    @Override public void onDisable() {
+    private void stopServices(){
         stopSession();
-        if(audit!=null){audit.close();audit=null;}
-        if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}
-        if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}
+        for(Player player:getServer().getOnlinePlayers())if(VerificationMenus.owns(player.getOpenInventory().getTopInventory())||DashboardMenus.owns(player.getOpenInventory().getTopInventory()))player.closeInventory();
+        if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}finally{worldEditGuard=null;}
+        if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}finally{luckPermsAudit=null;}
         if(dashboards!=null){dashboards.close();dashboards=null;}
         if(chat!=null){chat.close();chat=null;}
-        if(guard!=null){guard.close();guard=null;}
+        if(guard!=null){guard.close();retainedGuard=guard;guard=null;}
         if(roles!=null){roles.close();roles=null;}
         if(verification!=null){verification.close();verification=null;}
-        if(moderation!=null){moderation.close();moderation=null;}control=null;
+        if(moderation!=null){moderation.close();moderation=null;}
+        if(audit!=null){audit.close();audit=null;}
+        recovery=null;control=null;
     }
+    @Override public void onDisable(){stopServices();clearFallback();activeConfig=null;retainedGuard=null;}
 }
