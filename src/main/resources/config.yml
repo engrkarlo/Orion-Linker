@@ -63,6 +63,8 @@ guard:
   join-lockdown-seconds: 0
   containment-seconds: 60
   protected-worlds: []
+  # Optional inclusive WorldEdit regions: world, x1, y1, z1, x2, y2, z2.
+  protected-regions: []
   # Rule responses are additional to hard command/edit/block limits.
   # Omitted keys retain the legacy configured containment/lockdown duration.
   # ALERT, BUILD_RESTRICTION, WORLDEDIT_RESTRICTION, COMMAND_RESTRICTION,

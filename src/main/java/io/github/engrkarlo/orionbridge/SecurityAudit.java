@@ -51,9 +51,18 @@ final class SecurityAudit implements Listener,AutoCloseable {
         external(kind,identities.resolve(p),detail,"Paper");
     }
     void external(String kind,String identity,String detail,String source){
+        String attribution=switch(kind){
+            case "OP_STATUS_CHANGED","PERMISSION_MUTATION","PERMISSION_CLEAR" -> "AFFECTED";
+            case "ADMIN_PUNISH_REQUEST" -> "REQUEST_TARGET";
+            case "JOIN","QUIT","DEATH","ADVANCEMENT","PLAYER_REPORT","AUTHENTICATED_NETWORK","NETWORK_MATCH" -> "SUBJECT";
+            default -> identity==null?"UNKNOWN":"OBSERVED_ACTOR";
+        };
+        attributed(kind,identity,attribution,null,detail,source);
+    }
+    void attributed(String kind,String identity,String attribution,String affected,String detail,String source){
         UUID id=UUID.randomUUID();
         String safe=detail.replaceAll("[\\p{Cntrl}]"," ");if(safe.length()>1000)safe=safe.substring(0,1000);
-        journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+(identity==null?"null":OrionBridge.quote(identity))+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":"+OrionBridge.quote(source)+"}");
+        journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+(identity==null?"null":OrionBridge.quote(identity))+",\"attribution\":"+OrionBridge.quote(attribution)+",\"targetIdentity\":"+(affected==null?"null":OrionBridge.quote(affected))+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":"+OrionBridge.quote(source)+"}");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();ops.put(p.getUniqueId(),p.isOp());emit(p,"JOIN","Player joined: "+p.getName());}
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());identities.forget(p.getUniqueId());}

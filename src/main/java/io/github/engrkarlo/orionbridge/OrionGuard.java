@@ -24,6 +24,8 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final SecurityAudit audit;
     private final Map<String,Profile> profiles;
     private final Set<String> protectedWorlds;
+    private record ProtectedRegion(int minX,int minY,int minZ,int maxX,int maxY,int maxZ){boolean overlaps(int x,int y,int z,int endX,int endY,int endZ){return x<=maxX&&endX>=minX&&y<=maxY&&endY>=minY&&z<=maxZ&&endZ>=minZ;}}
+    private final Map<String,List<ProtectedRegion>> protectedRegions;
     private final GuardBudget editBudget=new GuardBudget();
     private final AtomicLong lockdownUntil=new AtomicLong();
     private record AlertKey(UUID player,String kind){}
@@ -56,6 +58,14 @@ final class OrionGuard implements Listener,AutoCloseable {
             loaded.put(name,new Profile(Set.copyOf(commands),clamp(config.getInt(base+"worldedit-per-operation"),0,2_000_000),clamp(config.getInt(base+"worldedit-per-minute"),0,4_000_000),clamp(config.getInt(base+"blocks-per-minute"),0,100_000),config.getBoolean(base+"staff-chat"),config.getBoolean(base+"lockdown-bypass"),config.getBoolean(base+"entity-tasks")));
         }
         profiles=Map.copyOf(loaded);protectedWorlds=Set.copyOf(config.getStringList("guard.protected-worlds"));
+        var regions=config.getMapList("guard.protected-regions");if(regions.size()>32)throw new IllegalArgumentException("Too many protected regions");
+        Map<String,List<ProtectedRegion>> area=new HashMap<>();
+        for(var region:regions){
+            Object w=region.get("world");if(!(w instanceof String world)||world.isBlank()||world.length()>100)throw new IllegalArgumentException("Invalid protected world");
+            int x1=coordinate(region,"x1"),y1=coordinate(region,"y1"),z1=coordinate(region,"z1"),x2=coordinate(region,"x2"),y2=coordinate(region,"y2"),z2=coordinate(region,"z2");
+            area.computeIfAbsent(world,k->new ArrayList<>()).add(new ProtectedRegion(Math.min(x1,x2),Math.min(y1,y2),Math.min(z1,z2),Math.max(x1,x2),Math.max(y1,y2),Math.max(z1,z2)));
+        }
+        area.replaceAll((world,list)->List.copyOf(list));protectedRegions=Map.copyOf(area);
         ordinaryBlocks=clamp(config.getInt("guard.block-changes-per-minute",500),10,100000);
         joinLimit=clamp(config.getInt("guard.joins-per-10-seconds",20),3,1000);
         entityLimit=clamp(config.getInt("guard.entities-per-10-seconds",500),10,10000);
@@ -87,6 +97,17 @@ final class OrionGuard implements Listener,AutoCloseable {
             editBudget.prune(System.nanoTime());
         },200L,200L);
     }
+    private static int coordinate(Map<?,?> region,String key){
+        Object raw=region.get(key);if(!(raw instanceof Integer n)||Math.abs((long)n)>30000000)throw new IllegalArgumentException("Invalid protected region coordinate "+key);return n;
+    }
+    boolean protectedEdit(String world,int x,int y,int z,boolean biome){
+        if(world.equals("unknown")||protectedWorlds.contains(world))return true;
+        int ex=x,ey=y,ez=z;
+        if(biome){x=Math.floorDiv(x,4)*4;y=Math.floorDiv(y,4)*4;z=Math.floorDiv(z,4)*4;ex=x+3;ey=y+3;ez=z+3;}
+        for(var region:protectedRegions.getOrDefault(world,List.of()))if(region.overlaps(x,y,z,ex,ey,ez))return true;
+        return false;
+    }
+    boolean entityEdit(UUID player){return profile(player).entityTasks();}
     private static int clamp(int n,int low,int high){return Math.max(low,Math.min(high,n));}
     boolean open(){return open;}
     Profile profile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
@@ -102,6 +123,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     private void evidence(String kind,String id,String detail,String source){if(audit!=null)audit.external(kind,id,detail,source);}
     void external(String kind,String identity,String detail,String source){evidence(kind,identity,detail,source);}
+    void attributed(String kind,String actor,String target,String detail,String source){if(audit!=null)audit.attributed(kind,actor,actor==null?"UNKNOWN":"REPORTED_ACTOR",target,detail,source);}
     void rule(UUID player,String identity,String kind,String detail,String source){
         var policy=rules.get(kind);
         if(policy==null||!policy.enabled())return;

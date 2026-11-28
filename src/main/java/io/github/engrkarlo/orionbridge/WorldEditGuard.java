@@ -4,6 +4,10 @@ import com.sk89q.worldedit.*;
 import com.sk89q.worldedit.event.extent.EditSessionEvent;
 import com.sk89q.worldedit.extent.*;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.util.Location;
+import com.sk89q.worldedit.entity.BaseEntity;
+import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.util.eventbus.Subscribe;
 import java.util.UUID;
@@ -17,18 +21,29 @@ final class WorldEditGuard implements AutoCloseable {
         if(event.getStage()!=EditSession.Stage.BEFORE_CHANGE||!guard.enforceEdits())return;
         var actor=event.getActor();
         UUID player=actor instanceof com.sk89q.worldedit.entity.Player?actor.getUniqueId():null;
-        if(player==null&&guard.allowNonPlayerEdits())return;
         String world=event.getWorld()==null?"unknown":event.getWorld().getName();
         event.setExtent(new AbstractDelegateExtent(event.getExtent()){
             private final AtomicInteger attempted=new AtomicInteger();
             private final AtomicBoolean reported=new AtomicBoolean(),authorized=new AtomicBoolean();
-            @Override public <T extends BlockStateHolder<T>> boolean setBlock(BlockVector3 location,T block)throws WorldEditException{
-                if(player==null||!guard.reserveEdit(player,world,attempted)){
-                    if(reported.compareAndSet(false,true))guard.rule(player,player==null?null:guard.identity(player),"WORLDEDIT_BLOCKED","WorldEdit mutation blocked; world="+world+"; position="+location+"; reserved attempts="+attempted.get()+"; prior changes may already exist","WorldEdit/FAWE");
-                    throw new MaxChangedBlocksException(player==null?0:guard.operationLimit(player,world));
+            private boolean permitted(BlockVector3 location,boolean biome,boolean entity){
+                boolean accepted=!guard.protectedEdit(world,location.x(),location.y(),location.z(),biome)
+                    &&(player==null?guard.allowNonPlayerEdits():(!entity||guard.entityEdit(player))&&guard.reserveEdit(player,world,attempted));
+                if(!accepted){
+                    if(reported.compareAndSet(false,true))guard.rule(player,player==null?null:guard.identity(player),"WORLDEDIT_BLOCKED","WorldEdit "+(entity?"entity":biome?"biome":"block")+" mutation blocked; world="+world+"; position="+location+"; reserved attempts="+attempted.get()+"; prior changes may already exist","WorldEdit/FAWE");
+                    return false;
                 }
-                if(authorized.compareAndSet(false,true))guard.external("TRUSTED_OPERATION",guard.identity(player),"Authorized WorldEdit session; world="+world+"; operation limit="+guard.operationLimit(player,world),"WorldEdit/FAWE");
+                if(authorized.compareAndSet(false,true))guard.external("TRUSTED_OPERATION",player==null?null:guard.identity(player),"Authorized WorldEdit session; world="+world+"; actor="+(player==null?"configured non-player source":"verified staff profile"),"WorldEdit/FAWE");
+                return true;
+            }
+            @Override public <T extends BlockStateHolder<T>> boolean setBlock(BlockVector3 location,T block)throws WorldEditException{
+                if(!permitted(location,false,false))throw new MaxChangedBlocksException(player==null?0:guard.operationLimit(player,world));
                 return super.setBlock(location,block);
+            }
+            @Override public boolean setBiome(BlockVector3 location,BiomeType biome){
+                return permitted(location,true,false)&&super.setBiome(location,biome);
+            }
+            @Override public Entity createEntity(Location location,BaseEntity entity){
+                return permitted(location.toBlockPoint(),false,true)?super.createEntity(location,entity):null;
             }
         });
     }
