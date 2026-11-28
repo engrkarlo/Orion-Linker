@@ -1,6 +1,6 @@
-# OrionBridge 2.0.0-alpha.2
+# OrionBridge 2.0.0-alpha.3
 
-**Development foundation — not a production security release.** Existing v1 telemetry remains supported. New: opt-in signed Pull audit feed, versioned configuration migration, and central SQLite identity/case/evidence primitives. Opt-in typed local Minecraft moderation supports a subset of sanctions; the production Discord adapter, mandatory verification, full role/chat sync and third-party security hooks are still pending. See [development status](docs/development-status.md) and [architecture](docs/architecture.md).
+**Development foundation — not a production security release.** Existing v1 telemetry remains supported. New: opt-in signed Pull audit feed, versioned configuration migration, and central SQLite identity/case/evidence primitives. Opt-in typed local Minecraft moderation supports a subset of sanctions; experimental mandatory verification has a live Pull contract, Java dialog/inventory and Bedrock forms. The production OrionBot adapter, full role/chat sync and third-party security hooks are still pending. See [development status](docs/development-status.md) and [architecture](docs/architecture.md).
 
 Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge). Existing OrionBot integration remains in place during migration.
 
@@ -132,6 +132,6 @@ From this repository root with JDK 25 and Maven 3.9+:
 mvn -B -f pom.xml clean verify
 ```
 
-Output: `target/OrionBridge-2.0.0-alpha.2.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
+Output: `target/OrionBridge-2.0.0-alpha.3.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
 
 [OrionBot host project](https://github.com/engrkarlo/OrionBot)

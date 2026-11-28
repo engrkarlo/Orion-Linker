@@ -35,6 +35,8 @@ public final class OrionBridge extends JavaPlugin {
     private SecurityAudit audit;
     private LocalModeration moderation;
     private ControlEndpoint control;
+    private VerificationGate verification;
+    void main(Runnable action){if(org.bukkit.Bukkit.isPrimaryThread())action.run();else getServer().getScheduler().runTask(this,action);}
     private volatile Session session;
     private volatile long lastWarning;
     private record Settings(String mode, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
@@ -65,13 +67,19 @@ public final class OrionBridge extends JavaPlugin {
             if(settings.mode().equals("pull")&&cfg.getBoolean("audit.enabled",false)){
                 try{audit=new SecurityAudit(this,cfg);}catch(Exception e){getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
             }
+            if(cfg.getBoolean("verification.enabled",false)&&cfg.getBoolean("verification.setup-complete",false)){
+                try{verification=new VerificationGate(this,cfg);}
+                catch(Exception e){getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");getServer().getPluginManager().registerEvents(new org.bukkit.event.Listener(){
+                    @org.bukkit.event.EventHandler public void login(org.bukkit.event.player.PlayerLoginEvent event){event.disallow(org.bukkit.event.player.PlayerLoginEvent.Result.KICK_OTHER,"OrionBridge verification unavailable. Contact staff.");}
+                },this);}
+            }
             if(settings.mode().equals("pull")&&cfg.getBoolean("control.enabled",false)){
                 try{
                     String key=cfg.getString("control.signing-key","");
                     if(key.equals(settings.token())||key.equals(cfg.getString("audit.signing-key","")))throw new IllegalArgumentException("Control key must be distinct");
                     AuditAuth auth=new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),key);
                     // Scope is shared with the audit feed, signing credentials are not.
-                    moderation=new LocalModeration(this,cfg);control=new ControlEndpoint(auth,moderation);
+                    moderation=new LocalModeration(this,cfg);control=new ControlEndpoint(auth,moderation,verification);
                 }catch(Exception e){getLogger().severe("Moderation control unavailable; check configuration and sanction storage. No remote enforcement is available.");}
             }
             apply(settings);
@@ -168,7 +176,13 @@ public final class OrionBridge extends JavaPlugin {
     }
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args){
-        if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob reload");return true;}
+        if(args.length==1&&args[0].equalsIgnoreCase("verification-off")&&sender instanceof org.bukkit.command.ConsoleCommandSender){
+            if(verification!=null){verification.close();verification=null;getLogger().warning("Verification temporarily disabled by console; restart reapplies configuration.");sender.sendMessage("Verification disabled until restart.");}
+            else sender.sendMessage("No active verification gate. Correct configuration and restart if initialization failed.");
+            return true;
+        }
+        if(sender instanceof Player player&&verification!=null&&verification.playerCommand(player,args))return true;
+        if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob account | /ob link | /ob reload");return true;}
         if(!sender.hasPermission("orionbridge.reload")){sender.sendMessage("You do not have permission to reload OrionBridge.");return true;}
         try {apply(readSettings());sender.sendMessage("OrionBridge reloaded ("+session.settings.mode()+").");}
         catch(Exception e){sender.sendMessage("OrionBridge reload failed: "+safeError(e)+(session==null?". Bridge inactive.":". Previous settings restored."));}
@@ -313,6 +327,7 @@ public final class OrionBridge extends JavaPlugin {
     @Override public void onDisable() {
         stopSession();
         if(audit!=null){audit.close();audit=null;}
+        if(verification!=null){verification.close();verification=null;}
         if(moderation!=null){moderation.close();moderation=null;}control=null;
     }
 }

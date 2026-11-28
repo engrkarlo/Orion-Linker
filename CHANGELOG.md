@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0-alpha.3
+- Session-bound verification leases and two-party linking exchange; experimental gameplay gate and console-only recovery.
+- Configurable Java native dialogs, inventory and Bedrock forms, chat fallback; no plaintext verification code in snapshots or database.
+- Direct online Java, Floodgate and explicit AuthMe authentication realms; unsupported identities remain restricted when verification is enabled.
+- Config v4 migration, Java and Node verification tests. Requires bot host integration; defaults remain disabled for prerelease safety.
+
 ## 2.0.0-alpha.2
 - Separate signed control credential and typed local moderation endpoint; durable per-case revision records and overlap-safe expiry/revocation.
 - Local experimental Java/Floodgate enforcement of mute, freeze, build restriction, quarantine and temporary/permanent ban; ordinary Paper event paths only. No unrestricted remote commands.

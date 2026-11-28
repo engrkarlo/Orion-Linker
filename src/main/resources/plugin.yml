@@ -1,10 +1,10 @@
 name: OrionBridge
-version: '2.0.0-alpha.2'
+version: '2.0.0-alpha.3'
 main: io.github.engrkarlo.orionbridge.OrionBridge
 api-version: '26.3'
 description: Read-only authenticated telemetry and live player textures for OrionBot.
 author: Karlow
-softdepend: [SkinsRestorer, floodgate]
+softdepend: [SkinsRestorer, floodgate, AuthMe, Geyser-Spigot]
 permissions:
   orionbridge.hide:
     description: Exclude this player from the bridge roster and counts.
@@ -15,5 +15,4 @@ permissions:
 commands:
   ob:
     description: Manage OrionBridge.
-    usage: /ob reload
-    permission: orionbridge.reload
+    usage: /ob account | /ob link | /ob reload
