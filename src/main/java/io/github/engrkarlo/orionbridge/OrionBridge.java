@@ -70,9 +70,10 @@ public final class OrionBridge extends JavaPlugin {
     private final SetupRequest setup=new SetupRequest();
     private volatile String setupStatus="{}";
     String setupStatus(){return setupStatus;}
+    void signal(String lane){var current=session;if(current!=null&&current.pull!=null)current.pull.signal(lane);}
     private void publishSetupStatus(){setupStatus="{\"audit\":"+(audit!=null)+",\"control\":"+(control!=null)+",\"linking\":"+(verification!=null)+",\"forced\":"+(verification!=null&&verification.forced())+",\"chat\":"+(chat!=null)+",\"chatRequireLink\":"+(chat==null||chat.requiresLink())+",\"guard\":"+(guard!=null)+",\"roles\":"+(roles!=null)+",\"recovery\":"+(recovery!=null)+"}";}
     private OrionGuard retainedGuard;
-    private record Settings(String mode, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
+    private record Settings(String mode, String transport, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
     private static final class Session {
         final Settings settings;
         final AtomicBoolean busy = new AtomicBoolean();
@@ -86,7 +87,7 @@ public final class OrionBridge extends JavaPlugin {
         Session(Settings settings, StoredSkins skins, AuditEndpoint audit,ControlEndpoint control,SetupRequest setup) throws java.io.IOException {
             this.settings=settings; this.storedSkins=skins;
             this.http=settings.mode().equals("push")?HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build():null;
-            try {this.pull=settings.mode().equals("pull")?new PullHttp(settings.bind(),settings.port(),settings.token(),audit,control,setup):null;}
+            try {this.pull=settings.mode().equals("pull")?new PullHttp(settings.bind(),settings.port(),settings.token(),audit,control,setup,settings.transport()):null;}
             catch(java.io.IOException | RuntimeException e){worker.shutdownNow();if(http!=null)http.shutdownNow();throw e;}
         }
         void close(){try{if(pull!=null)pull.close();}finally{worker.shutdownNow();if(http!=null)http.shutdownNow();}}
@@ -349,7 +350,9 @@ public final class OrionBridge extends JavaPlugin {
             getLogger().info("Generated a pull token in config.yml. Keep it private.");
         }
         if(!token.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("Token must be 64 lowercase hexadecimal characters");
-        return new Settings(mode,endpoint,bind,port,token,seconds,cfg.getBoolean("hide-vanished",true),cfg.getBoolean("respect-listing-preference",true),cfg.getBoolean("skinsrestorer-fallback",true));
+        String transport=cfg.getString("transport","AUTO").toUpperCase(java.util.Locale.ROOT);
+        if(!java.util.Set.of("AUTO","HTTP","WEBSOCKET").contains(transport))throw new IllegalArgumentException("transport must be AUTO, HTTP or WEBSOCKET");
+        return new Settings(mode,transport,endpoint,bind,port,token,seconds,cfg.getBoolean("hide-vanished",true),cfg.getBoolean("respect-listing-preference",true),cfg.getBoolean("skinsrestorer-fallback",true));
     }
 
     private void startSession(Settings settings) throws java.io.IOException {
@@ -395,9 +398,10 @@ public final class OrionBridge extends JavaPlugin {
                     if(c.feature().equals("FORCE")&&(verification==null||!verification.forced()&&getServer().getOnlinePlayers().stream().noneMatch(p->verification.authorized(p.getUniqueId()))))
                         throw new java.io.IOException("Test optional linking with an online authorized player before enforcing it");
                 }
+                String originalToken=session.settings.token();
                 SetupConfig.provision(getDataFolder().toPath(),c);
                 var result=reloadAll();
-                if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED)setup.approve(request,session.settings.token(),System.currentTimeMillis());
+                if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED&&originalToken.equals(session.settings.token()))setup.approve(request,originalToken,System.currentTimeMillis());
                 messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
             }catch(Exception e){getLogger().warning("Setup could not apply: "+(e instanceof java.io.IOException?e.getMessage():"Invalid setup settings"));messages.send(sender,"setup.failed");}
             return;

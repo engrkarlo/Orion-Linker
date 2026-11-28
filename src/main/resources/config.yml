@@ -1,5 +1,5 @@
 # OrionBridge | Connection and telemetry
-# Start here: set your hosting allocation port, then run ob setup after pairing.
+# Set the hosting allocation port, start the server, then run ob setup.
 # The automatic setup in OrionBot handles private signing credentials for you.
 # Advanced features have their own files in config/.
 # Change only what you need. Keep the token and all signing keys private.
@@ -11,6 +11,10 @@ config-version: 15
 # Required for linking, moderation, chat, ranks and other security features.
 # push: Minecraft sends telemetry to OrionBot; security features are not available.
 mode: pull
+
+# AUTO accepts WebSocket and authenticated HTTP on the same proxy allocation.
+# HTTP is the compatibility option. WEBSOCKET requires the socket-capable listener.
+transport: AUTO
 
 # Use 0.0.0.0 for a Pterodactyl allocation/reverse proxy, or 127.0.0.1
 # only when the reverse proxy runs on the same network namespace.
