@@ -3,6 +3,7 @@
 # When enabled, the plugin can receive approved typed actions (e.g. mute, freeze,
 # ban), not arbitrary console commands. Enable matching features in OrionBot.
 # Requires the guild and server IDs from config/audit.yml and its OWN key.
+# Automatic setup provisions this key; do not manually copy it unless using an older bot.
 # Use /ob reload after changes.
 control:
   enabled: false

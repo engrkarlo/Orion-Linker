@@ -7,10 +7,14 @@
 # Emergency console command: ob verification-off (until reload or restart).
 # Use /ob reload after changes.
 verification:
-  # Opt in to account verification; false means no verification gate.
+  # Enable account linking. Leave false if you only want server status.
   enabled: false
-  # Set true only after setup and testing. Both switches are required.
+  # Set true only after setup and testing. Both switches activate account linking.
   setup-complete: false
+  # true = require linking before gameplay (including operators).
+  # false = optional linking; unlinked players can play, but cannot use trusted features.
+  # Existing installations retain forced verification unless explicitly changed.
+  force: true
   # DIALOG = native Java dialog; INVENTORY = chest-style Java menu.
   # Bedrock uses its own forms automatically. See menus/ for appearance.
   java-interface: DIALOG

@@ -103,7 +103,7 @@ public final class OrionBridge extends JavaPlugin {
             activeConfig=cfg;
             refreshOnline();
         }
-        catch(Exception|LinkageError e){failed=true;getLogger().warning("Bridge startup incomplete: "+safeError(e)+". Check configuration files.");if(verification==null&&(startupConfig==null||verifyRequested(startupConfig)))installVerificationFallback();}
+        catch(Exception|LinkageError e){failed=true;getLogger().warning("Bridge startup incomplete: "+safeError(e)+". Check configuration files.");if(verification==null&&(startupConfig==null||forceRequested(startupConfig)))installVerificationFallback();}
         startupBanner(startupConfig,failed,started);
     }
     private java.util.Map<String,YamlConfiguration> loadAppearance()throws Exception{
@@ -123,7 +123,7 @@ public final class OrionBridge extends JavaPlugin {
             if(settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled",false)&&getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{roles=new LuckPermsRoles(this,cfg);}catch(LinkageError|RuntimeException e){if(strict)throw e;getLogger().warning("LuckPerms role sync unavailable.");}
             if(cfg.getBoolean("verification.enabled",false)&&cfg.getBoolean("verification.setup-complete",false)){
                 try{verification=new VerificationGate(this,cfg,challengeState);}
-                catch(Exception e){if(strict)throw e;getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");installVerificationFallback();}
+                catch(Exception e){if(strict)throw e;getLogger().severe("Identity setup could not initialize. Check verification configuration.");if(forceRequested(cfg))installVerificationFallback();}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("control.enabled",false)){
                 try{
@@ -190,6 +190,7 @@ public final class OrionBridge extends JavaPlugin {
     }
     private void validateDependencies(YamlConfiguration cfg,Settings settings){
         boolean pull=settings.mode().equals("pull");
+        if(cfg.getBoolean("verification.lobby.enabled")&&!forceRequested(cfg))throw new IllegalArgumentException("Verification lobby requires forced verification");
         if(verifyRequested(cfg)&&(!pull||!cfg.getBoolean("control.enabled")))throw new IllegalArgumentException("Verification requires Pull mode and signed control");
         if(cfg.getBoolean("chat.enabled")&&(!verifyRequested(cfg)||!cfg.getBoolean("control.enabled")||!pull))throw new IllegalArgumentException("Chat requires Pull mode, verification and signed control");
         if(pull&&cfg.getBoolean("audit.enabled"))new AuditAuth(cfg.getString("audit.guild-id",""),cfg.getString("audit.server-id",""),cfg.getString("audit.signing-key",""));
@@ -317,6 +318,7 @@ public final class OrionBridge extends JavaPlugin {
         console("divider");
     }
     private static boolean verifyRequested(YamlConfiguration cfg){return cfg!=null&&cfg.getBoolean("verification.enabled")&&cfg.getBoolean("verification.setup-complete");}
+    private static boolean forceRequested(YamlConfiguration cfg){return verifyRequested(cfg)&&cfg.getBoolean("verification.force",true);}
 
     private static String safeError(Throwable e){
         return e instanceof CategoryConfig.LayoutException||e instanceof IllegalArgumentException?e.getMessage():"Unable to read configuration or bind the listener";
@@ -361,7 +363,7 @@ public final class OrionBridge extends JavaPlugin {
 
     private void stopSession(){
         if(task!=null){task.cancel();task=null;}
-        Session old=session;session=null;
+        setup.cancel();Session old=session;session=null;
         if(old!=null)old.close();
     }
 

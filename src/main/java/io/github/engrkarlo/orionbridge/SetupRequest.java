@@ -11,6 +11,7 @@ final class SetupRequest {
     private final SecureRandom random=new SecureRandom();
     private String code;
     private long expires;
+    private int attempts;
     private Pending pending;
     record Credentials(String guild,String server,String actor,String audit,String control,String network) {
         Credentials {
@@ -19,14 +20,16 @@ final class SetupRequest {
                 ||audit.equals(control)||audit.equals(network)||control.equals(network))
                 throw new IllegalArgumentException("Invalid setup credentials");
         }
+        @Override public String toString(){return "Credentials[redacted]";}
         boolean distinct(String token){return !audit.equals(token)&&!control.equals(token)&&!network.equals(token);}
     }
     record Pending(String id,Credentials credentials,long expires){}
     private String secret(int bytes){byte[] value=new byte[bytes];random.nextBytes(value);return HexFormat.of().formatHex(value);}
-    synchronized String open(long now){code=secret(16);expires=now+TTL;pending=null;return code;}
+    synchronized String open(long now){code=secret(16);expires=now+TTL;attempts=0;pending=null;return code;}
     synchronized void cancel(){code=null;expires=0;pending=null;}
     synchronized Pending stage(String raw,String token,long now){
         if(code==null||now>=expires||raw.length()>512)return null;
+        if(++attempts>8){cancel();return null;}
         String[] parts=raw.split("\\n",-1);
         if(parts.length!=7||parts[0].length()!=32||!MessageDigest.isEqual(code.getBytes(StandardCharsets.US_ASCII),parts[0].getBytes(StandardCharsets.US_ASCII)))return null;
         Credentials creds;

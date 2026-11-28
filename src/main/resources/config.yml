@@ -1,5 +1,7 @@
 # OrionBridge | Connection and telemetry
-# Start here. Other features have their own files in config/.
+# Start here: set your hosting allocation port, then run ob setup after pairing.
+# The automatic setup in OrionBot handles private signing credentials for you.
+# Advanced features have their own files in config/.
 # Change only what you need. Keep the token and all signing keys private.
 # Restart Paper after installing an update; /ob reload applies all OrionBridge configuration and theme files.
 # Do not manually change the version; the plugin handles upgrades.

@@ -2,7 +2,7 @@
 # Edit these MiniMessage strings to change wording, colors and formatting.
 # Keep dynamic placeholders intact. User-provided values are inserted literally.
 # /ob reload applies changes. The security checks never depend on wording.
-theme-version: 1
+theme-version: 2
 commands:
   unknown: '<red>✗ Unknown OrionBridge command.</red> <gray>Use /ob help.</gray>'
   denied: '<red>✗ You cannot use this command right now.</red> <gray>Check your permissions, verification and enabled features.</gray>'
