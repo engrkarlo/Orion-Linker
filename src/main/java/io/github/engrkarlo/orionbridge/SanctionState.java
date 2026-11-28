@@ -14,7 +14,7 @@ final class SanctionState {
     private static final int MAX_CASES=10000;
     private final Path directory;
     private final Map<UUID,Case> cases=new HashMap<>();
-    private volatile Map<String,List<Case>> byIdentity=Map.of();
+    private final java.util.concurrent.ConcurrentMap<String,List<Case>> byIdentity=new java.util.concurrent.ConcurrentHashMap<>();
     SanctionState(Path directory)throws IOException{
         this.directory=directory;Files.createDirectories(directory);
         try(var paths=Files.list(directory)){
@@ -60,13 +60,20 @@ final class SanctionState {
             Files.writeString(tmp,encode(next),StandardCharsets.UTF_8);
             try(var channel=java.nio.channels.FileChannel.open(tmp,StandardOpenOption.WRITE)){channel.force(true);}
             Files.move(tmp,directory.resolve(next.id()+".case"),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
-            cases.put(next.id(),next);rebuild();return "PERSISTED";
+            cases.put(next.id(),next);
+            byIdentity.compute(next.identity(),(id,list)->{
+                var updated=new ArrayList<Case>(list==null?List.of():list);
+                updated.removeIf(c->c.id().equals(next.id())||!c.active(now));
+                if(next.active(now))updated.add(next);
+                return updated.isEmpty()?null:List.copyOf(updated);
+            });
+            return "PERSISTED";
         }finally{Files.deleteIfExists(tmp);}
     }
     private void rebuild(){
         Map<String,List<Case>> next=new HashMap<>();
         for(Case c:cases.values())if(!c.revoked())next.computeIfAbsent(c.identity(),k->new ArrayList<>()).add(c);
-        next.replaceAll((k,v)->List.copyOf(v));byIdentity=Map.copyOf(next);
+        next.replaceAll((k,v)->List.copyOf(v));byIdentity.clear();byIdentity.putAll(next);
     }
     List<Case> active(String identity,long now){
         if(identity==null)return List.of();

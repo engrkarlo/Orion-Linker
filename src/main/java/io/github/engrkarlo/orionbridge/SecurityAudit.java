@@ -24,9 +24,9 @@ final class SecurityAudit implements Listener,AutoCloseable {
     private final Map<UUID,Long> commandAlerts=new HashMap<>();
     private final BukkitTask task;
     private long reportedDrops;
-    private record Window(long started,int count,boolean alerted){}
+    private static final class Window {long started;int count;boolean alerted;Window(long started){this.started=started;}}
     SecurityAudit(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
-        this.plugin=plugin;identities=new AuthenticatedIdentity(plugin,cfg.getString("verification.authme-realm",""));String guild=cfg.getString("audit.guild-id",""),server=cfg.getString("audit.server-id",""),key=cfg.getString("audit.signing-key","");
+        this.plugin=plugin;identities=plugin.identities();String guild=cfg.getString("audit.guild-id",""),server=cfg.getString("audit.server-id",""),key=cfg.getString("audit.signing-key","");
         AuditAuth auth=new AuditAuth(guild,server,key);
         networks=cfg.getBoolean("correlation.enabled",false)&&cfg.getBoolean("correlation.confirm-real-client-addresses",false)?new NetworkFingerprint(guild,cfg.getString("correlation.guild-key","")):null;
         threshold=Math.max(10,Math.min(100000,cfg.getInt("audit.block-changes-per-minute",500)));
@@ -50,14 +50,15 @@ final class SecurityAudit implements Listener,AutoCloseable {
         journal.offer(id,"{\"id\":"+OrionBridge.quote(id.toString())+",\"at\":"+System.currentTimeMillis()+",\"kind\":"+OrionBridge.quote(kind)+",\"identity\":"+identity(p)+",\"detail\":"+OrionBridge.quote(safe)+",\"source\":\"Paper\"}");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void join(PlayerJoinEvent e){Player p=e.getPlayer();ops.put(p.getUniqueId(),p.isOp());emit(p,"JOIN","Player joined: "+p.getName()+"; operator="+p.isOp());}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){Player p=e.getPlayer();emit(p,"QUIT","Player left: "+p.getName());ops.remove(p.getUniqueId());windows.remove(p.getUniqueId());commandAlerts.remove(p.getUniqueId());networkSeen.remove(p.getUniqueId());identities.forget(p.getUniqueId());}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void broken(BlockBreakEvent e){count(e.getPlayer());}
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true) public void placed(BlockPlaceEvent e){count(e.getPlayer());}
     private void count(Player p){
         long now=System.nanoTime();UUID id=p.getUniqueId();Window old=windows.get(id);
-        if(old==null||now-old.started()>=60_000_000_000L)old=new Window(now,0,false);
-        int count=old.count()+1;boolean alert=!old.alerted()&&count>=threshold;
-        windows.put(id,new Window(old.started(),count,old.alerted()||alert));
+        if(old==null){old=new Window(now);windows.put(id,old);}
+        else if(now-old.started>=60_000_000_000L){old.started=now;old.count=0;old.alerted=false;}
+        int count=++old.count;boolean alert=!old.alerted&&count>=threshold;
+        if(alert)old.alerted=true;
         if(alert)emit(p,"BLOCK_ACTIVITY_THRESHOLD","Player "+p.getName()+" reached "+count+" uncancelled break/place events within one minute; world="+p.getWorld().getName()+"; not proof of griefing");
     }
     @EventHandler(priority=EventPriority.MONITOR) public void command(PlayerCommandPreprocessEvent e){

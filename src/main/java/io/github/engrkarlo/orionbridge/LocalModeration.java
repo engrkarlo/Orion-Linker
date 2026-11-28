@@ -23,7 +23,7 @@ final class LocalModeration implements Listener,AutoCloseable {
     private final AtomicBoolean open=new AtomicBoolean(true);
     private final org.bukkit.scheduler.BukkitTask refresh;
     LocalModeration(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
-        this.plugin=plugin;identities=new AuthenticatedIdentity(plugin,cfg.getString("verification.authme-realm",""));
+        this.plugin=plugin;identities=plugin.identities();
         state=new SanctionState(plugin.getDataFolder().toPath().resolve("sanctions").resolve(cfg.getString("audit.guild-id")).resolve(cfg.getString("audit.server-id")));
         for(Player p:plugin.getServer().getOnlinePlayers())track(p);
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
@@ -48,7 +48,7 @@ final class LocalModeration implements Listener,AutoCloseable {
         }
     }
     @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){track(e.getPlayer());notifyBan(e.getPlayer());}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){online.remove(e.getPlayer().getUniqueId());}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){online.remove(e.getPlayer().getUniqueId());identities.forget(e.getPlayer().getUniqueId());}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(frozen(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);
     }

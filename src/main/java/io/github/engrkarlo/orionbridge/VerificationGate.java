@@ -29,7 +29,7 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final Map<UUID,Boolean> wasVerified=new HashMap<>();
     private volatile boolean active=true;
     VerificationGate(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
-        this.plugin=plugin;identities=new AuthenticatedIdentity(plugin,cfg.getString("verification.authme-realm",""));
+        this.plugin=plugin;identities=plugin.identities();
         invite=cfg.getString("verification.discord-invite","");lease=Math.max(15,Math.min(60,cfg.getInt("verification.lease-seconds",60)))*1000L;
         reopenSeconds=Math.max(0,Math.min(300,cfg.getInt("verification.reopen-seconds",15)));
         menus=new VerificationMenus(plugin,cfg);
@@ -69,7 +69,7 @@ final class VerificationGate implements Listener,AutoCloseable {
             if(s.identity()==null||rows.size()>=2000)continue;
             rows.add("{\"player\":"+q(s.player().toString())+",\"session\":"+q(s.session().toString())+",\"identity\":"+q(s.identity())+",\"request\":"+(s.request()==null?"null":q(s.request().toString()))+",\"hasCode\":"+s.hasCode(now)+",\"claimant\":"+(s.claimant()==null?"null":q(s.claimant()))+",\"confirmed\":"+s.confirmed()+",\"leaseUntil\":"+s.leaseUntil()+"}");
         }
-        return "{\"protocol\":2,\"sessions\":["+String.join(",",rows)+"]}";
+        return "{\"protocol\":2,\"batchVerification\":true,\"leaseSeconds\":"+(lease/1000)+",\"sessions\":["+String.join(",",rows)+"]}";
     }
     private static String q(String v){return OrionBridge.quote(v);}
     String action(String body){
@@ -82,13 +82,36 @@ final class VerificationGate implements Listener,AutoCloseable {
         catch(InterruptedException e){Thread.currentThread().interrupt();result.cancel(false);return "BUSY";}
         catch(ExecutionException|TimeoutException|RuntimeException e){result.cancel(false);return "BUSY";}
     }
+    String batch(String body){
+        if(!active)return "{\"results\":[]}";
+        String[] rows=body.split("\\n\\n",-1);
+        if(rows.length>64||rows.length==0)return "{\"results\":[]}";
+        // One scheduled task, only lease/restriction changes; interactive linking
+        // remains on the individual route to keep GUI work out of bulk renewals.
+        CompletableFuture<String> result=new CompletableFuture<>();
+        try{
+            plugin.getServer().getScheduler().runTask(plugin,()->{
+                if(result.isDone())return;
+                List<String> receipts=new ArrayList<>();
+                for(String row:rows){
+                    if(result.isDone())return;
+                    String value="INVALID";
+                    if(row.startsWith("LEASE\n")||row.startsWith("RESTRICT\n"))try{value=execute(row);}catch(RuntimeException ignored){}
+                    receipts.add(q(value));
+                }
+                result.complete("{\"results\":["+String.join(",",receipts)+"]}");
+            });
+            return result.get(3,TimeUnit.SECONDS);
+        }catch(InterruptedException e){Thread.currentThread().interrupt();result.cancel(false);return "{\"results\":[]}";}
+        catch(ExecutionException|TimeoutException|RuntimeException e){result.cancel(false);return "{\"results\":[]}";}
+    }
     private String execute(String body){
         if(!active)return "CLOSED";
         String[] fields=body.split("\n",-1);if(fields.length<5)return "INVALID";
         UUID player=UUID.fromString(fields[1]),session=UUID.fromString(fields[2]);String identity=fields[3];
         if(!SanctionState.validIdentity(identity))return "INVALID";
         Player p=plugin.getServer().getPlayer(player);
-        if(p==null||!p.isOnline()||!identity.equals(identities.resolve(p)))return "STALE";
+        if(p==null||!p.isOnline()||!identity.equals(identities.fresh(p)))return "STALE";
         long now=System.currentTimeMillis();String result;
         switch(fields[0]){
             case "OFFER"->{if(fields.length!=7)return "INVALID";result=state.offer(player,session,identity,UUID.fromString(fields[4]),fields[5],Long.parseLong(fields[6]),now);}
@@ -125,7 +148,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         return (s==null||s.identity()==null)&&resolved!=null&&resolved.getPlugin().getName().equalsIgnoreCase("AuthMe")&&Set.of("login","register").contains(resolved.getName().toLowerCase(Locale.ROOT));
     }
     @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){Player p=e.getPlayer();state.join(p.getUniqueId(),identities.resolve(p));plugin.getServer().getScheduler().runTask(plugin,()->show(p));}
-    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);lastShown.remove(id);wasVerified.remove(id);}
+    @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();state.quit(id);identities.forget(id);lastShown.remove(id);wasVerified.remove(id);}
     @EventHandler(priority=EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e){if(restricted(e.getPlayer()))plugin.getServer().getScheduler().runTask(plugin,()->show(e.getPlayer()));}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void move(PlayerMoveEvent e){
         if(restricted(e.getPlayer())&&e.getTo()!=null&&(e.getFrom().getWorld()!=e.getTo().getWorld()||e.getFrom().getX()!=e.getTo().getX()||e.getFrom().getY()!=e.getTo().getY()||e.getFrom().getZ()!=e.getTo().getZ()))e.setCancelled(true);

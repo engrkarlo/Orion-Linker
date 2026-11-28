@@ -36,6 +36,8 @@ public final class OrionBridge extends JavaPlugin {
     private LocalModeration moderation;
     private ControlEndpoint control;
     private VerificationGate verification;
+    private AuthenticatedIdentity identities;
+    AuthenticatedIdentity identities(){return identities;}
     void main(Runnable action){if(org.bukkit.Bukkit.isPrimaryThread())action.run();else getServer().getScheduler().runTask(this,action);}
     private volatile Session session;
     private volatile long lastWarning;
@@ -64,6 +66,7 @@ public final class OrionBridge extends JavaPlugin {
         try {
             Settings settings=readSettings();
             var cfg=new YamlConfiguration();cfg.load(new File(getDataFolder(),"config.yml"));
+            identities=new AuthenticatedIdentity(this,cfg.getString("verification.authme-realm",""));
             if(settings.mode().equals("pull")&&cfg.getBoolean("audit.enabled",false)){
                 try{audit=new SecurityAudit(this,cfg);}catch(Exception e){getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
             }
