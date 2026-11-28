@@ -17,18 +17,20 @@ final class PullHttp implements AutoCloseable {
     private final byte[] authorization;
     private volatile Snapshot latest;
     private record Snapshot(byte[] json,long sentAt){}
-    PullHttp(String bind,int port,String token,AuditEndpoint audit) throws IOException {
+    PullHttp(String bind,int port,String token,AuditEndpoint audit,ControlEndpoint control) throws IOException {
         authorization=("Bearer "+token).getBytes(StandardCharsets.UTF_8);
         server=HttpServer.create(new InetSocketAddress(bind,port),32);
         workers=new ThreadPoolExecutor(2,4,30,TimeUnit.SECONDS,new ArrayBlockingQueue<>(32),r->{Thread t=new Thread(r,"OrionBridge-HTTP");t.setDaemon(true);return t;},new ThreadPoolExecutor.AbortPolicy());
         server.setExecutor(workers);
         server.createContext("/v1/snapshot",this::handle);
-        if(audit!=null)server.createContext("/v2/",ex->{
+        if(audit!=null||control!=null)server.createContext("/v2/",ex->{
             try{
                 ex.getResponseHeaders().set("Cache-Control","no-store");
                 ex.getResponseHeaders().set("Content-Type","application/json; charset=utf-8");
                 if(!authorized(ex)){ex.sendResponseHeaders(401,-1);return;}
-                audit.handle(ex);
+                if(ex.getRequestURI().getRawPath().equals("/v2/actions")&&control!=null)control.handle(ex);
+                else if(audit!=null)audit.handle(ex);
+                else ex.sendResponseHeaders(404,-1);
             }finally{ex.close();}
         });
         try{server.start();}catch(RuntimeException e){server.stop(0);workers.shutdownNow();throw e;}

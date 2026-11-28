@@ -17,3 +17,10 @@ Paper observation: join/quit, operator status changes observed on one-second sam
 - Punishment execution, approval/expiry/revocation and overlapping restrictions.
 - Role synchronization, chat/channel manager, trusted staff leases, security integrations, evidence export and rollback approval.
 - Full Java/Bedrock interfaces and live Pull tests. Do not deploy this as a complete security system.
+
+## Alpha.2 typed control
+Requires restart and explicit control.enabled, distinct control.signing-key, audit.guild-id and audit.server-id. POST /v2/actions uses same scoped HMAC envelope as audit but the control key. Body is seven newline-delimited fields: case UUID, positive revision, canonical java/bedrock identity, allowed type, absolute expiry epoch milliseconds (0 indefinite), APPLY/REVOKE, base64url UTF-8 reason. Response PERSISTED confirms the local case record, not that a disconnected player was kicked. Revision tombstones reject stale applies after revocation. Local case store has a 10000-case cap; expiry evaluated on use. No deletion of third-party punishments.
+
+Supported experimental restrictions: Minecraft mute, ordinary movement/interaction freeze/quarantine, break/place/bucket build restriction, temp/permanent ban checked on join and online after delivery. Not all plugin/API/event paths are covered. Direct online-mode Java and Floodgate identity resolver only; offline AuthMe/forwarded Java need further work. Unresolved identities are not enforced by this alpha. Floodgate and client behavior require live testing. Do not rely on this prerelease for production raid protection. Control initialization/storage failure is logged, not silently treated as active enforcement.
+
+bot/moderation-pull.js delivers approved cases and records per-server acknowledgements; approval/case functions require a trusted host adapter for permissions and membership. Discord-only and cross-platform enforcement, warnings, kicks, role and WorldEdit restrictions are not yet supported by the local endpoint. The adapter does not register Discord handlers or schedule itself.

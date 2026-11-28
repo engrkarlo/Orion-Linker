@@ -35,7 +35,7 @@ function createVault(file=path.join(process.cwd(),'data','orionbridge.key')){
   }
 }
 async function fetchBridge(origin,token,{resolve=dns.resolve4,request=https.request,route='/v1/snapshot',method='GET',body,headers={}}={}){
-  if(![['GET','/v1/snapshot'],['GET','/v2/events'],['POST','/v2/acknowledge']].some(([m,p])=>m===method&&p===route))throw Error('Unsupported bridge route')
+  if(![['GET','/v1/snapshot'],['GET','/v2/events'],['POST','/v2/acknowledge'],['POST','/v2/actions']].some(([m,p])=>m===method&&p===route))throw Error('Unsupported bridge route')
   if(body!=null&&(!Buffer.isBuffer(body)||body.length>4096))throw Error('Invalid bridge body')
   const url=new URL(validateOrigin(origin))
   // Resolve and pin the destination address for this connection; do not

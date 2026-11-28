@@ -37,10 +37,8 @@ final class SecurityAudit implements Listener,AutoCloseable {
         task=started;
     }
     private String identity(Player p){
-        // Only direct online-mode Java UUIDs are classified here. Floodgate and
-        // offline/proxy authentication need an explicit provider integration.
-        if(!plugin.getServer().getOnlineMode()||plugin.getServer().getPluginManager().isPluginEnabled("floodgate")||p.getUniqueId().version()!=4)return "null";
-        return OrionBridge.quote("java:"+p.getUniqueId().toString().replace("-",""));
+        String id=new AuthenticatedIdentity(plugin).resolve(p);
+        return id==null?"null":OrionBridge.quote(id);
     }
     private void emit(Player p,String kind,String detail){
         UUID id=UUID.randomUUID();

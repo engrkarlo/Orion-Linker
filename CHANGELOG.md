@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0-alpha.2
+- Separate signed control credential and typed local moderation endpoint; durable per-case revision records and overlap-safe expiry/revocation.
+- Local experimental Java/Floodgate enforcement of mute, freeze, build restriction, quarantine and temporary/permanent ban; ordinary Paper event paths only. No unrestricted remote commands.
+- Central approval and per-server delivery receipts; second actor required, stale actions rejected, expired pending cases not delivered.
+- Config v3 migration and regression checks. Control is disabled by default; OrionBot dashboard and scheduler are not yet integrated.
+
 ## 2.0.0-alpha.1 — development foundation
 - Imported OrionBridge 1.1.0 from OrionBot cd031ad; preserved telemetry and legacy transport.
 - Standalone Java 25 Maven and Node 22 CI; original telemetry regression tests.

@@ -27,7 +27,7 @@ function createSecurityStore({file,secret,now=Date.now}){
   const db=new DatabaseSync(file)
   db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=2500; PRAGMA journal_mode=WAL;')
   const version=db.prepare('PRAGMA user_version').get().user_version
-  if(version>1){db.close();throw Error('Unsupported security database version')}
+  if(version>2){db.close();throw Error('Unsupported security database version')}
   db.exec(`BEGIN IMMEDIATE;
   CREATE TABLE IF NOT EXISTS servers(guild TEXT NOT NULL, server TEXT NOT NULL, PRIMARY KEY(guild,server));
   CREATE TABLE IF NOT EXISTS links(guild TEXT NOT NULL, identity TEXT NOT NULL, discord TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY(guild,identity),UNIQUE(guild,discord));
@@ -39,7 +39,8 @@ function createSecurityStore({file,secret,now=Date.now}){
   CREATE TABLE IF NOT EXISTS networks(guild TEXT NOT NULL,identity TEXT NOT NULL,fingerprint TEXT NOT NULL,last_seen INTEGER NOT NULL,PRIMARY KEY(guild,identity,fingerprint));
   CREATE INDEX IF NOT EXISTS networks_match ON networks(guild,fingerprint,last_seen);
   CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,guild TEXT NOT NULL,server TEXT NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,subject TEXT NOT NULL,at INTEGER NOT NULL);
-  PRAGMA user_version=1; COMMIT;`)
+  CREATE TABLE IF NOT EXISTS deliveries(case_id TEXT NOT NULL,guild TEXT NOT NULL,server TEXT NOT NULL,revision INTEGER NOT NULL,operation TEXT NOT NULL,state TEXT NOT NULL,receipt_at INTEGER,PRIMARY KEY(case_id,guild,server),FOREIGN KEY(case_id) REFERENCES cases(id),FOREIGN KEY(guild,server) REFERENCES servers(guild,server));
+  PRAGMA user_version=2; COMMIT;`)
   const run=(sql,...args)=>db.prepare(sql).run(...args), get=(sql,...args)=>db.prepare(sql).get(...args), all=(sql,...args)=>db.prepare(sql).all(...args)
   function tx(fn){db.exec('BEGIN IMMEDIATE');try{const result=fn();db.exec('COMMIT');return result}catch(e){db.exec('ROLLBACK');throw e}}
   function server(g,s){scope(g,s);if(!get('SELECT 1 FROM servers WHERE guild=? AND server=?',g,s))throw Error('Unknown server')}
@@ -94,6 +95,53 @@ function createSecurityStore({file,secret,now=Date.now}){
     tx(()=>{run('INSERT INTO cases VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',id,g,s,i,linked(g,i)?.discord||null,actor,type,reason,targetScope,created,expires,'PENDING_APPROVAL');log(g,s,actor,'CASE_CREATED',id)})
     return get('SELECT * FROM cases WHERE guild=? AND id=?',g,id)
   }
+  const localTypes=new Set(['MUTE','FREEZE','BUILD_RESTRICTION','QUARANTINE','TEMP_BAN','PERMANENT_BAN'])
+  function approve(g,id,actor){
+    discord(actor)
+    return tx(()=>{
+      const c=getCase(g,id)
+      if(!c||c.state!=='PENDING_APPROVAL'||c.actor===actor||(c.expires!==null&&c.expires<=now()))throw Error('Case cannot be approved')
+      if(!localTypes.has(c.type)||!['MINECRAFT_SERVER','GUILD_MINECRAFT'].includes(c.scope))throw Error('Enforcement type not implemented')
+      const targets=c.scope==='MINECRAFT_SERVER'?[{server:c.server}]:all('SELECT server FROM servers WHERE guild=?',g)
+      for(const target of targets)run("INSERT INTO deliveries VALUES(?,?,?,1,'APPLY','PENDING',NULL)",id,g,target.server)
+      run("UPDATE cases SET state='PENDING_ENFORCEMENT' WHERE guild=? AND id=?",g,id)
+      log(g,c.server,actor,'CASE_APPROVED',id)
+      return getCase(g,id)
+    })
+  }
+  function revoke(g,id,actor,reason){
+    discord(actor);reason=text(reason,500)
+    return tx(()=>{
+      const c=getCase(g,id)
+      if(!c||!['PENDING_APPROVAL','PENDING_ENFORCEMENT','PARTIAL','ACTIVE'].includes(c.state))throw Error('Case cannot be revoked')
+      const pending=c.state==='PENDING_APPROVAL'
+      run("UPDATE deliveries SET revision=revision+1,operation='REVOKE',state='PENDING',receipt_at=NULL WHERE guild=? AND case_id=?",g,id)
+      run('UPDATE cases SET state=? WHERE guild=? AND id=?',pending?'REVOKED':'PENDING_REVOCATION',g,id)
+      log(g,c.server,actor,'CASE_REVOKE_REQUESTED',id+' '+reason)
+      return getCase(g,id)
+    })
+  }
+  function pending(g,s,limit=50){
+    server(g,s);if(!Number.isInteger(limit)||limit<1||limit>100)throw Error('Invalid limit')
+    return all("SELECT d.case_id,d.revision,d.operation,c.identity,c.type,c.expires,c.reason FROM deliveries d JOIN cases c ON c.id=d.case_id AND c.guild=d.guild WHERE d.guild=? AND d.server=? AND d.state='PENDING' AND (d.operation='REVOKE' OR c.expires IS NULL OR c.expires>?) ORDER BY CASE d.operation WHEN 'REVOKE' THEN 0 ELSE 1 END,c.created LIMIT ?",g,s,now(),limit)
+  }
+  function acknowledge(g,s,id,revision){
+    server(g,s)
+    if(!Number.isInteger(revision)||revision<1)throw Error('Invalid revision')
+    return tx(()=>{
+      const c=getCase(g,id);if(!c)return false
+      const d=get('SELECT * FROM deliveries WHERE case_id=? AND guild=? AND server=?',id,g,s)
+      if(!d||d.revision!==revision)return false
+      run("UPDATE deliveries SET state='PERSISTED',receipt_at=? WHERE case_id=? AND guild=? AND server=?",now(),id,g,s)
+      const left=get("SELECT COUNT(*) AS n FROM deliveries WHERE guild=? AND case_id=? AND state='PENDING'",g,id).n
+      const state=d.operation==='REVOKE'?(left?'PENDING_REVOCATION':'REVOKED'):(c.expires!==null&&c.expires<=now()?'EXPIRED':left?'PARTIAL':'ACTIVE')
+      run('UPDATE cases SET state=? WHERE guild=? AND id=?',state,g,id)
+      return true
+    })
+  }
+  function expire(){
+    return run("UPDATE cases SET state='EXPIRED' WHERE expires IS NOT NULL AND expires<=? AND state IN ('PENDING_APPROVAL','PENDING_ENFORCEMENT','PARTIAL','ACTIVE')",now()).changes
+  }
   function getCase(g,id){if(!GUILD.test(g)||typeof id!=='string'||!ID.test(id))throw Error('Invalid case');return get('SELECT * FROM cases WHERE guild=? AND id=?',g,id)||null}
   function recordEvent(g,s,event){
     server(g,s)
@@ -116,6 +164,6 @@ function createSecurityStore({file,secret,now=Date.now}){
     return {matches:row.matches,commonOwnershipConfirmed:false}
   }
   function prune(){run('DELETE FROM challenges WHERE expires<=?',now());run('DELETE FROM networks WHERE last_seen<?',now()-90*86400000)}
-  return {register,linked,issue,claim,confirm,createCase,getCase,recordEvent,events,observeNetwork,compare,prune,close:()=>db.close()}
+  return {register,linked,issue,claim,confirm,createCase,getCase,approve,revoke,pending,acknowledge,expire,recordEvent,events,observeNetwork,compare,prune,close:()=>db.close()}
 }
 module.exports={createSecurityStore,duration,identity}
