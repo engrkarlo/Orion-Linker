@@ -11,7 +11,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import net.kyori.adventure.text.Component;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class OrionGuard implements Listener,AutoCloseable {
@@ -27,7 +26,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     private record ProtectedRegion(int minX,int minY,int minZ,int maxX,int maxY,int maxZ){boolean overlaps(int x,int y,int z,int endX,int endY,int endZ){return x<=maxX&&endX>=minX&&y<=maxY&&endY>=minY&&z<=maxZ&&endZ>=minZ;}}
     private final Map<String,List<ProtectedRegion>> protectedRegions;
     private final GuardBudget editBudget=new GuardBudget();
-    private final AtomicLong lockdownUntil=new AtomicLong();
+    private final DurableLockdown lockdownState;
     private record AlertKey(UUID player,String kind){}
     private final Map<AlertKey,Long> lastAlert=new ConcurrentHashMap<>();
     private final GuardContainment containment=new GuardContainment();
@@ -46,6 +45,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     }
     OrionGuard(OrionBridge plugin,YamlConfiguration config,VerificationGate gate,LocalModeration moderation,SecurityAudit audit){
         this.plugin=plugin;this.gate=gate;this.moderation=moderation;this.audit=audit;
+        lockdownState=new DurableLockdown(plugin.getDataFolder().toPath().resolve("guard-lockdown.state"),System.currentTimeMillis());
         Map<String,Profile> loaded=new HashMap<>();
         var section=config.getConfigurationSection("guard.profiles");
         if(section!=null)for(String name:section.getKeys(false)){
@@ -115,11 +115,11 @@ final class OrionGuard implements Listener,AutoCloseable {
     boolean staffChat(UUID id){return !frozen(id)&&profile(id).staffChat();}
     boolean profileStaffChat(String name){return profiles.getOrDefault(name,ORDINARY).staffChat();}
     Set<String> profiles(){return profiles.keySet();}
-    boolean lockdown(){return lockdownUntil.get()>System.currentTimeMillis();}
-    long lockdownUntil(){return lockdownUntil.get();}
+    boolean lockdown(){return lockdownState.until()>System.currentTimeMillis();}
+    long lockdownUntil(){return lockdownState.until();}
     void lockdown(long until,String source){
         if(until<0||until>System.currentTimeMillis()+3600000)throw new IllegalArgumentException("Lockdown duration out of bounds");
-        lockdownUntil.set(until);evidence("LOCKDOWN",null,"Lockdown until "+until+"; source "+source,"OrionGuard");
+        lockdownState.set(until);evidence("LOCKDOWN",null,"Lockdown until "+until+"; source "+source,"OrionGuard");
     }
     private void evidence(String kind,String id,String detail,String source){if(audit!=null)audit.external(kind,id,detail,source);}
     void external(String kind,String identity,String detail,String source){evidence(kind,identity,detail,source);}
@@ -134,7 +134,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         if(prior!=null&&(now-prior<policy.cooldownSeconds()*1000L||!lastAlert.replace(key,prior,now)))return;
         var type=policy.type();
         if(type==GuardContainment.Type.LOCKDOWN){
-            lockdownUntil.accumulateAndGet(now+policy.seconds()*1000L,Math::max);
+            try{lockdownState.extend(now+policy.seconds()*1000L);}catch(java.io.UncheckedIOException e){plugin.getLogger().severe("Automatic lockdown active in memory but could not be persisted; check guard state storage.");}
         }else if(player!=null&&identity!=null)containment.apply(player,type,now+policy.seconds()*1000L);
         else type=GuardContainment.Type.ALERT;
         evidence(kind,identity,"Severity="+policy.severity()+"; response="+type+"; duration="+(type==GuardContainment.Type.ALERT?0:policy.seconds())+"s; "+detail,source);
