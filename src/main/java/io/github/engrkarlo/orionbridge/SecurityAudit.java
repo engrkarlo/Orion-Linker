@@ -15,6 +15,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
     final AuditEndpoint endpoint;
     private final AuditJournal journal;
     private final OrionBridge plugin;
+    private final AuthenticatedIdentity identities;
     private final int threshold;
     private final Map<UUID,Window> windows=new HashMap<>();
     private final Map<UUID,Boolean> ops=new HashMap<>();
@@ -23,7 +24,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
     private long reportedDrops;
     private record Window(long started,int count,boolean alerted){}
     SecurityAudit(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
-        this.plugin=plugin;String guild=cfg.getString("audit.guild-id",""),server=cfg.getString("audit.server-id",""),key=cfg.getString("audit.signing-key","");
+        this.plugin=plugin;identities=new AuthenticatedIdentity(plugin,cfg.getString("verification.authme-realm",""));String guild=cfg.getString("audit.guild-id",""),server=cfg.getString("audit.server-id",""),key=cfg.getString("audit.signing-key","");
         AuditAuth auth=new AuditAuth(guild,server,key);
         threshold=Math.max(10,Math.min(100000,cfg.getInt("audit.block-changes-per-minute",500)));
         journal=new AuditJournal(plugin.getDataFolder().toPath().resolve("audit").resolve(guild).resolve(server));
@@ -37,7 +38,7 @@ final class SecurityAudit implements Listener,AutoCloseable {
         task=started;
     }
     private String identity(Player p){
-        String id=new AuthenticatedIdentity(plugin).resolve(p);
+        String id=identities.resolve(p);
         return id==null?"null":OrionBridge.quote(id);
     }
     private void emit(Player p,String kind,String detail){

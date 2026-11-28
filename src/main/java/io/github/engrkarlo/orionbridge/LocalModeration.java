@@ -21,11 +21,13 @@ final class LocalModeration implements Listener,AutoCloseable {
     private final AuthenticatedIdentity identities;
     private final Map<UUID,String> online=new ConcurrentHashMap<>();
     private final AtomicBoolean open=new AtomicBoolean(true);
+    private final org.bukkit.scheduler.BukkitTask refresh;
     LocalModeration(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
-        this.plugin=plugin;identities=new AuthenticatedIdentity(plugin);
+        this.plugin=plugin;identities=new AuthenticatedIdentity(plugin,cfg.getString("verification.authme-realm",""));
         state=new SanctionState(plugin.getDataFolder().toPath().resolve("sanctions").resolve(cfg.getString("audit.guild-id")).resolve(cfg.getString("audit.server-id")));
         for(Player p:plugin.getServer().getOnlinePlayers())track(p);
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
+        refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{for(Player player:plugin.getServer().getOnlinePlayers()){String before=online.get(player.getUniqueId());track(player);if(!Objects.equals(before,online.get(player.getUniqueId())))notifyBan(player);}},20L,20L);
     }
     private void track(Player p){String id=identities.resolve(p);if(id==null)online.remove(p.getUniqueId());else online.put(p.getUniqueId(),id);}
     String apply(SanctionState.Case c)throws java.io.IOException{
@@ -68,5 +70,5 @@ final class LocalModeration implements Listener,AutoCloseable {
         if(e.getDamager() instanceof Player p&&frozen(p))e.setCancelled(true);
         if(e.getDamager() instanceof org.bukkit.entity.Projectile projectile&&projectile.getShooter() instanceof Player p&&frozen(p))e.setCancelled(true);
     }
-    @Override public void close(){open.set(false);HandlerList.unregisterAll(this);online.clear();}
+    @Override public void close(){open.set(false);refresh.cancel();HandlerList.unregisterAll(this);online.clear();}
 }

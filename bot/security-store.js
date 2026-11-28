@@ -3,7 +3,7 @@
 // Discord interaction before invoking these methods. No public HTTP or Discord routes.
 const {DatabaseSync}=require('node:sqlite')
 const {randomBytes,randomUUID,createHmac,timingSafeEqual}=require('node:crypto')
-const GUILD=/^\d{17,20}$/, SERVER=/^[a-f0-9]{16}$/, IDENT=/^(?:java:[a-f0-9]{32}|bedrock:[1-9]\d{0,19})$/, ID=/^[a-f0-9-]{36}$/
+const GUILD=/^\d{17,20}$/, SERVER=/^[a-f0-9]{16}$/, IDENT=/^(?:java:[a-f0-9]{32}|bedrock:[1-9]\d{0,19}|authme:[a-z0-9_-]{1,32}:[a-z0-9_]{1,16})$/, ID=/^[a-f0-9-]{36}$/
 const TYPES=new Set(['WARNING','KICK','MUTE','DISCORD_TIMEOUT','FREEZE','BUILD_RESTRICTION','WORLDEDIT_RESTRICTION','COMMAND_RESTRICTION','QUARANTINE','ROLE_SUSPENSION','TEMP_BAN','PERMANENT_BAN'])
 const MC_ONLY=new Set(['MUTE','FREEZE','BUILD_RESTRICTION','WORLDEDIT_RESTRICTION','COMMAND_RESTRICTION','QUARANTINE'])
 const MAX_DURATION=365*86400000

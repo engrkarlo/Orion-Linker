@@ -40,6 +40,7 @@ final class SanctionState {
     static boolean validIdentity(String i){
         if(i==null)return false;
         if(i.matches("java:[a-f0-9]{32}"))return !i.equals("java:"+"0".repeat(32));
+        if(i.matches("authme:[a-z0-9_-]{1,32}:[a-z0-9_]{1,16}"))return true;
         if(i.matches("bedrock:[1-9][0-9]{0,19}"))try{return Long.parseUnsignedLong(i.substring(8))!=0;}catch(NumberFormatException ignored){return false;}
         return false;
     }
