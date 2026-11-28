@@ -117,6 +117,7 @@ guard:
       staff-chat: true
       lockdown-bypass: false
       entity-tasks: false
+      # Temporary edit tasks require explicit worldedit-scope.commands entries.
       worldedit-scope:
         worlds: []
         regions: []
