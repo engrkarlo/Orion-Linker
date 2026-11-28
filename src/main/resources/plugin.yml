@@ -21,4 +21,4 @@ permissions:
 commands:
   ob:
     description: Manage OrionBridge.
-    usage: /ob account | /ob link | /ob admin | /ob reload
+    usage: /ob help

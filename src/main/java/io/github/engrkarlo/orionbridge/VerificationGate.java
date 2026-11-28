@@ -89,11 +89,11 @@ final class VerificationGate implements Listener,AutoCloseable {
         long now=System.currentTimeMillis();
         // Do not open a modal/inventory over AuthMe's login flow.
         if(s.identity()==null){
-            if(!lastShown.containsKey(p.getUniqueId()))p.sendMessage(Component.text("Authenticate with the server first. OrionBridge verification follows; gameplay remains restricted."));
+            if(!lastShown.containsKey(p.getUniqueId()))plugin.messages().send(p,"verification.authenticate-first");
             lastShown.put(p.getUniqueId(),now);return;
         }
         if(s.verified(now)){
-            if(!lobby.restore(p,s.identity()))p.sendMessage(Component.text("Your saved return location is unavailable. Contact staff or run /ob return when the location is safe and loaded."));
+            if(!lobby.restore(p,s.identity()))plugin.messages().send(p,"verification.return-unavailable");
         }else lobby.enter(p,s.identity());
         lastShown.put(p.getUniqueId(),now);
         menus.show(p,s,invite,()->{if(same(p,s)){state.request(p.getUniqueId(),System.currentTimeMillis());show(p);}},()->{if(same(p,s))show(p);},()->{if(same(p,s)&&state.confirm(p.getUniqueId(),s.request(),s.claimant(),System.currentTimeMillis()))show(p);},()->{if(same(p,s))p.closeInventory();});
@@ -107,11 +107,11 @@ final class VerificationGate implements Listener,AutoCloseable {
             state.join(id,identity);lastShown.remove(id);
         }
         if(identity==null&&args.length==1&&args[0].equalsIgnoreCase("link")){
-            p.sendMessage(Component.text("Authenticate with the server first, then run /ob link. Gameplay remains restricted."));return true;
+            plugin.messages().send(p,"verification.authenticate-link");return true;
         }
         if(args.length==1&&args[0].equalsIgnoreCase("return")){
-            if(restricted(p)){p.sendMessage(Component.text("Complete verification before returning."));return true;}
-            p.sendMessage(Component.text(lobby.restore(p,identity)?"Return complete or no saved location.":"Saved return unavailable. Contact staff."));return true;
+            if(restricted(p)){plugin.messages().send(p,"verification.return-required");return true;}
+            plugin.messages().send(p,lobby.restore(p,identity)?"verification.return-ok":"verification.return-unavailable");return true;
         }
         if(args.length==0||args.length==1&&Set.of("account","help").contains(args[0].toLowerCase(Locale.ROOT))){show(p);return true;}
         if(args.length==1&&args[0].equalsIgnoreCase("link")){

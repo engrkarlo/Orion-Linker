@@ -55,11 +55,12 @@ final class ChatRelay implements Listener,AutoCloseable {
         String identity=gate==null?null:gate.linkedIdentity(e.getPlayer().getUniqueId());
         if(identity!=null)offer(identity,e.getPlayer().getName(),PlainTextComponentSerializer.plainText().serialize(e.message()),false);
     }
+    boolean staffEnabled(){return open&&staff&&outbound;}
     boolean staff(Player p,String message){
         if(!open||!staff||gate==null||plugin.guard()==null||!plugin.guard().staffChat(p.getUniqueId()))return false;
         String identity=gate.linkedIdentity(p.getUniqueId());
         if(identity==null||muted(identity)||!offer(identity,p.getName(),message,true))return false;
-        Component line=Component.text("[Staff] "+p.getName()+": "+clean(message,500));
+        Component line=plugin.messages().render("chat.staff-local","name",p.getName(),"message",clean(message,500));
         for(Player viewer:plugin.getServer().getOnlinePlayers())if(plugin.guard().staffChat(viewer.getUniqueId()))viewer.sendMessage(line);
         return true;
     }
@@ -98,7 +99,7 @@ final class ChatRelay implements Listener,AutoCloseable {
                     if(rate.size()>=4096){rate.entrySet().removeIf(e->t-e.getValue()>60000);if(rate.size()>=4096){result.complete("BUSY");return;}}
                     rate.put(rateKey,t);delivered.put(id,t);
                 }
-                Component message=Component.text((privateChat?"[Discord Staff] ":"[Discord] ")+name+": "+text);
+                Component message=plugin.messages().render(privateChat?"chat.discord-staff":"chat.discord","name",name,"message",text);
                 for(Player player:plugin.getServer().getOnlinePlayers()){
                     if(gate==null||!gate.authorized(player.getUniqueId()))continue;
                     if(!privateChat||plugin.guard()!=null&&plugin.guard().staffChat(player.getUniqueId()))player.sendMessage(message);

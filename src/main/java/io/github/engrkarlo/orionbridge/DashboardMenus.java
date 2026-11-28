@@ -28,9 +28,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
     private boolean open=true;
     DashboardMenus(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
         this.plugin=plugin;interfaceType=cfg.getString("verification.java-interface","DIALOG");invite=cfg.getString("verification.discord-invite","");
-        String resource="menus/dashboard.yml";Path file=plugin.getDataFolder().toPath().resolve(resource);
-        if(!java.nio.file.Files.exists(file))plugin.saveResource(resource,false);
-        theme=new YamlConfiguration();theme.load(file.toFile());
+        theme=plugin.theme("dashboard");
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
     }
     private boolean verified(Player p){return open&&p.isOnline()&&plugin.verification()!=null&&plugin.verification().authorized(p.getUniqueId());}
@@ -65,7 +63,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
         if(!verified(p))return;
         Component details=themed("bodies.appeal-a-case","Open the Discord verification panel and choose Appeal a case. Enter your case ID and explanation. Use My appeals to track the decision. An appeal does not automatically remove restrictions.");
         if(!invite.isBlank())details=details.append(Component.newline()).append(themed("bodies.discord-invite","Discord: <invite>","invite",invite));
-        show(p,false,"Appeal a case",details,List.of(button("punishments","View case IDs",Material.BOOK,()->punishments(p,plugin.verification().linkedIdentity(p.getUniqueId()),false)),button("back","Back",Material.ARROW,()->account(p))));
+        show(p,false,"Appeal a case",details,List.of(button("case-ids","View case IDs",Material.BOOK,()->punishments(p,plugin.verification().linkedIdentity(p.getUniqueId()),false)),button("back","Back",Material.ARROW,()->account(p))));
     }
     void report(Player p){
         if(!verified(p))return;
@@ -96,7 +94,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
         List<Entry> entries=new ArrayList<>();
         for(Player player:online.stream().skip(current*20L).limit(20).toList()){
             UUID id=player.getUniqueId();
-            entries.add(new Entry(player.getName(),Material.PLAYER_HEAD,()->{
+            entries.add(new Entry(theme.getString("labels.player","<name>").replace("<name>",player.getName().replace("\\","\\\\").replace("<","\\<")),material("player",Material.PLAYER_HEAD),()->{
                 if(!admin(p))return;Player target=plugin.getServer().getPlayer(id);
                 String identity=target==null?null:plugin.identities().fresh(target);
                 if(identity!=null)inspect(p,identity,target.getName());
@@ -110,7 +108,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
     }
     private void inspect(Player p,String identity,String name){
         if(!admin(p)||!SanctionState.validIdentity(identity))return;
-        show(p,true,"Player profile",themed("bodies.player-profile","<name>\n<identity>\nUse Discord for historical identity, evidence and policy editing.","name",name,"identity",identity),List.of(button("punishments","Active punishments",Material.BOOK,()->punishments(p,identity,true)),button("request","Request punishment",Material.IRON_AXE,()->request(p,identity)),button("back","Back",Material.ARROW,()->adminMenu(p))));
+        show(p,true,"Player profile",themed("bodies.player-profile","<name>\n<identity>\nUse Discord for historical identity, evidence and policy editing.","name",name,"identity",identity),List.of(button("active-punishments","Active punishments",Material.BOOK,()->punishments(p,identity,true)),button("request","Request punishment",Material.IRON_AXE,()->request(p,identity)),button("back","Back",Material.ARROW,()->adminMenu(p))));
     }
     private void request(Player p,String identity){
         if(!admin(p)||plugin.audit()==null)return;
@@ -126,10 +124,10 @@ final class DashboardMenus implements Listener,AutoCloseable {
     private void input(Player p,boolean staff,String title,String hint,Consumer<String> action){
         if(staff?!admin(p):!verified(p))return;
         UUID token=UUID.randomUUID();screens.put(p.getUniqueId(),token);
-        Consumer<String> safe=text->{if(usable(p,staff,token))action.accept(text);};
+        Consumer<String> safe=text->{if(usable(p,staff,token)&&screens.remove(p.getUniqueId(),token))action.accept(text);};
         var legacy=LegacyComponentSerializer.legacySection();
         Component heading=themed("headings."+key(title),title),prompt=themed("inputs."+key(title),hint);
-        if(Bedrock.detect(p)==Bedrock.Detection.BEDROCK&&Bedrock.input(p,plugin,legacy.serialize(heading),legacy.serialize(prompt),"",safe,()->{}))return;
+        if(Bedrock.detect(p)==Bedrock.Detection.BEDROCK&&Bedrock.input(p,plugin,legacy.serialize(heading),legacy.serialize(prompt),theme.getString("layout.input-placeholder",""),safe,()->{}))return;
         if(JavaDialogs.input(p,plugin,heading,prompt,themed("labels.submit","Submit"),themed("labels.cancel","Cancel"),Math.max(50,Math.min(300,theme.getInt("layout.input-width",240))),safe))return;
         message(p,"input-unavailable","Input interface unavailable. Use the Discord dashboard.");
     }
@@ -149,11 +147,11 @@ final class DashboardMenus implements Listener,AutoCloseable {
         int size=Math.max(Math.max(27,Math.min(54,theme.getInt("layout.inventory-rows",3)*9)),Math.min(54,((entries.size()+1+8)/9)*9));holder.inventory=Bukkit.createInventory(holder,size,title(heading));
         int infoSlot=Math.max(0,Math.min(size-1,theme.getInt("layout.information-slot",0)));
         List<Integer> positions=DashboardLayout.slots(size,infoSlot,entries.size(),theme.getIntegerList("layout.button-slots"));
-        var info=new ItemStack(material("information",Material.BOOK));var infoMeta=info.getItemMeta();infoMeta.displayName(title(heading));infoMeta.lore(Arrays.stream(legacy.serialize(details).split("\\n")).limit(20).map(legacy::deserialize).map(c->c.decoration(TextDecoration.ITALIC,false)).toList());info.setItemMeta(infoMeta);holder.inventory.setItem(infoSlot,info);
+        var info=new ItemStack(material("information",Material.BOOK));var infoMeta=info.getItemMeta();infoMeta.displayName(title(heading));infoMeta.lore(Arrays.stream(legacy.serialize(details).split("\\n")).limit(20).map(legacy::deserialize).map(c->c.decoration(TextDecoration.ITALIC,theme.getBoolean("layout.italic-items",false))).toList());info.setItemMeta(infoMeta);holder.inventory.setItem(infoSlot,info);
         for(int i=0;i<entries.size();i++){
             Entry e=entries.get(i);ItemStack item=new ItemStack(e.material());var meta=item.getItemMeta();
             if(meta instanceof SkullMeta skull&&e.head()!=null){Player target=plugin.getServer().getPlayer(e.head());if(target!=null)skull.setPlayerProfile(target.getPlayerProfile());}
-            meta.displayName(component(e.name()).decoration(TextDecoration.ITALIC,false));item.setItemMeta(meta);int slot=positions.get(i);holder.inventory.setItem(slot,item);holder.positions.put(slot,i);
+            meta.displayName(component(e.name()).decoration(TextDecoration.ITALIC,theme.getBoolean("layout.italic-items",false)));item.setItemMeta(meta);int slot=positions.get(i);holder.inventory.setItem(slot,item);holder.positions.put(slot,i);
         }
         p.openInventory(holder.inventory);
     }

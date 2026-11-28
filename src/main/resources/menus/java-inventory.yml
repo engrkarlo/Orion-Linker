@@ -3,7 +3,7 @@
 # Used for INVENTORY mode or Java dialog fallback. Material controls each item; image is not used.
 # Use MiniMessage colors. Keep <code>, <discord>, <discord_id> and <invite> placeholders where needed.
 # Never expose the private code in public chat. Restart Paper to apply changes.
-theme-version: 2
+theme-version: 3
 title: '<light_purple>OrionBridge</light_purple> | <white>Account verification</white>'
 # Each screen corresponds to a different step of the verification process.
 screens:
@@ -43,3 +43,7 @@ information-material: BOOK
 primary-slot: 11
 secondary-slot: 15
 filler-material: BLACK_STAINED_GLASS_PANE
+
+# Optional inventory item styling.
+filler-name: ' '
+italic-items: false

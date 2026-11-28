@@ -213,7 +213,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         boolean edit=owner.equals("worldedit")||owner.equals("fastasyncworldedit")||raw.startsWith("/")||raw.startsWith("worldedit:")||raw.startsWith("fawe:");
         boolean sensitive=edit||GuardCommands.sensitive(owner,name,raw.substring(raw.lastIndexOf(':')+1).replaceFirst("^/+",""));
         if(strictCommands&&!sensitive&&!ordinaryCommands.contains(owner+":"+name))sensitive=true;
-        if(edit&&blockEdits&&!worldEditReady){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Guard edit hook unavailable; refusing an edit command until restart");player.sendMessage(Component.text("OrionGuard: edit protection unavailable. Contact staff."));return;}
+        if(edit&&blockEdits&&!worldEditReady){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Guard edit hook unavailable; refusing an edit command until restart");plugin.messages().send(player,"guard.edit-unavailable");return;}
         // These direct entity operations may bypass the guarded extent. Deny
         // them while WE protection is on instead of claiming complete coverage.
         if(edit&&blockEdits&&GuardCommands.directEdit(name)){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Direct or administrative edit command denied; no guarded extent guarantee");return;}
@@ -221,7 +221,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         Profile profile=edit?editProfile(player.getUniqueId()):profile(player.getUniqueId());
         var task=gate==null?null:gate.task(player.getUniqueId());
         boolean allowed=resolved!=null&&(edit?profile.editLimit()>0&&profile.scope().permitsCommand(owner,name)&&(task==null||blockEdits&&worldEditReady&&GuardCommands.taskCommand(profile.scope(),owner,name)):profile.commands().contains(owner+":"+name));
-        if(!allowed){e.setCancelled(true);alert(player,"GUARD_COMMAND_BLOCKED","Blocked sensitive command category "+name+"; resolved owner="+owner);player.sendMessage(Component.text("OrionGuard: this operation requires an approved staff profile."));}
+        if(!allowed){e.setCancelled(true);alert(player,"GUARD_COMMAND_BLOCKED","Blocked sensitive command category "+name+"; resolved owner="+owner);plugin.messages().send(player,"guard.command-denied");}
         else alert(player,"TRUSTED_OPERATION","Authorized command category "+name+"; owner="+owner);
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void breakBlock(BlockBreakEvent e){if(!block(e.getPlayer()))e.setCancelled(true);}

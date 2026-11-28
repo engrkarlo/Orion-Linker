@@ -1,0 +1,57 @@
+# OrionBridge | Player-facing messages
+# Edit these MiniMessage strings to change wording, colors and formatting.
+# Keep dynamic placeholders intact. User-provided values are inserted literally.
+# /ob reload applies changes. The security checks never depend on wording.
+theme-version: 1
+commands:
+  unknown: '<red>✗ Unknown OrionBridge command.</red> <gray>Use /ob help.</gray>'
+  denied: '<red>✗ You cannot use this command right now.</red> <gray>Check your permissions, verification and enabled features.</gray>'
+  help-unavailable: '<red>Command guide unavailable. Check menus/help.yml.</red>'
+  reload-start: '<light_purple>✦ OrionBridge</light_purple> <gray>Reloading configuration and menus…</gray>'
+  reload-applied: '<green>✓ All OrionBridge configuration files reloaded.</green> <gray>Linked players may briefly wait for authorization.</gray>'
+  reload-busy: '<yellow>Bridge is processing a signed request. No settings changed; try /ob reload again shortly.</yellow>'
+  reload-unchanged: '<red>✗ Configuration could not be read or validated. Existing services unchanged. See console.</red>'
+  reload-restored: '<yellow>New configuration failed; previous runtime restored. See console.</yellow>'
+  reload-failed: '<red>✗ Reload and rollback failed. Joins restricted; inspect console and restore configuration.</red>'
+  verification-off: '<yellow>Verification temporarily disabled until reload or restart.</yellow>'
+  verification-inactive: '<gray>No active verification gate.</gray>'
+  lockdown-updated: '<green>✓ Lockdown updated.</green>'
+  lockdown-storage: '<red>Lockdown update could not be saved. Check storage.</red>'
+  staffchat-unavailable: '<red>Staff chat unavailable or not authorized.</red>'
+  status-header: '<gradient:#b48cff:#f5b6ff><bold>✦ OrionBridge</bold></gradient> <gray>• Service status</gray>'
+  status-on: ' <green>●</green> <white><service></white> <dark_gray>—</dark_gray> <green>Active</green>'
+  status-off: ' <dark_gray>●</dark_gray> <gray><service> — Inactive</gray>'
+  status-footer: '<dark_gray><st>                                      </st></dark_gray>'
+services:
+  telemetry: Telemetry
+  audit: Audit
+  verification: Verification
+  moderation: Moderation
+  guard: OrionGuard
+  roles: Rank synchronization
+  chat: Chat relay
+  worldedit: WorldEdit protection
+  luckperms: LuckPerms audit
+  recovery: CoreProtect recovery
+verification:
+  configuration-unavailable: '<red>OrionBridge configuration or verification unavailable. Contact staff.</red>'
+  authenticate-first: '<yellow>Authenticate with the server first.</yellow> <gray>Discord verification follows; gameplay remains restricted.</gray>'
+  authenticate-link: '<yellow>Authenticate first, then run /ob link.</yellow> <gray>Gameplay remains restricted.</gray>'
+  return-required: '<yellow>Complete verification before returning.</yellow>'
+  return-ok: '<green>Return complete or no saved location.</green>'
+  return-unavailable: '<yellow>Saved return unavailable. Contact staff or use /ob return when the location is safe and loaded.</yellow>'
+  copy-code: '<light_purple><code></light_purple>'
+  confirm-hint: '<gray>Confirm using </gray><light_purple><command></light_purple>'
+  link-hint: '<gray>Start linking with </gray><light_purple><command></light_purple>'
+guard:
+  edit-unavailable: '<red>OrionGuard:</red> <gray>Edit protection unavailable. Contact staff.</gray>'
+  command-denied: '<red>OrionGuard:</red> <gray>This operation requires an approved staff profile.</gray>'
+moderation:
+  kick: '<reason> <gray>| Case <case_id></gray>'
+  sanction: '<light_purple>OrionBridge</light_purple> <gray>• <kind> | <reason> | Case <case_id></gray>'
+  banned: '<red>Access restricted.</red> <reason> <gray>| Case <case_id></gray>'
+chat:
+  # These formats apply to in-game chat; Discord formatting is managed by OrionBot.
+  staff-local: '<light_purple>[Staff]</light_purple> <white><name></white><gray>:</gray> <message>'
+  discord: '<blue>[Discord]</blue> <white><name></white><gray>:</gray> <message>'
+  discord-staff: '<light_purple>[Discord Staff]</light_purple> <white><name></white><gray>:</gray> <message>'

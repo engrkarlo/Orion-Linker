@@ -25,7 +25,7 @@ final class LocalModeration implements Listener,AutoCloseable {
     LocalModeration(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
         this.plugin=plugin;identities=plugin.identities();
         state=new SanctionState(plugin.getDataFolder().toPath().resolve("sanctions").resolve(cfg.getString("audit.guild-id")).resolve(cfg.getString("audit.server-id")));
-        for(Player p:plugin.getServer().getOnlinePlayers())track(p);
+        for(Player p:plugin.getServer().getOnlinePlayers()){track(p);notifyBan(p);}
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
         refresh=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{for(Player player:plugin.getServer().getOnlinePlayers()){String before=online.get(player.getUniqueId());track(player);if(!Objects.equals(before,online.get(player.getUniqueId())))notifyBan(player);}},20L,20L);
     }
@@ -39,8 +39,8 @@ final class LocalModeration implements Listener,AutoCloseable {
             if(!open.get())return;
             for(Player p:plugin.getServer().getOnlinePlayers())if(c.identity().equals(online.get(p.getUniqueId()))){
                 if(newCase&&!c.revoked()&&c.active(System.currentTimeMillis())){
-                    if(c.kind()==SanctionState.Kind.KICK){p.kick(Component.text(c.reason()+" | Case "+c.id()));continue;}
-                    p.sendMessage(Component.text("OrionBridge: "+c.kind()+" | "+c.reason()+" | Case "+c.id()));
+                    if(c.kind()==SanctionState.Kind.KICK){p.kick(plugin.messages().render("moderation.kick","reason",c.reason(),"case_id",c.id().toString()));continue;}
+                    plugin.messages().send(p,"moderation.sanction","kind",c.kind().name(),"reason",c.reason(),"case_id",c.id().toString());
                 }
                 notifyBan(p);
             }
@@ -54,7 +54,7 @@ final class LocalModeration implements Listener,AutoCloseable {
     private boolean build(Player p){return frozen(p)||has(p,SanctionState.Kind.BUILD_RESTRICTION);}
     private void notifyBan(Player p){
         for(var c:state.active(online.get(p.getUniqueId()),System.currentTimeMillis()))if(c.kind()==SanctionState.Kind.TEMP_BAN||c.kind()==SanctionState.Kind.PERMANENT_BAN){
-            p.kick(Component.text("Access restricted. "+c.reason()+" | Case "+c.id()));return;
+            p.kick(plugin.messages().render("moderation.banned","reason",c.reason(),"case_id",c.id().toString()));return;
         }
     }
     @EventHandler(priority=EventPriority.LOWEST) public void join(PlayerJoinEvent e){track(e.getPlayer());notifyBan(e.getPlayer());}
@@ -78,7 +78,7 @@ final class LocalModeration implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void command(PlayerCommandPreprocessEvent e){if(frozen(e.getPlayer())||has(e.getPlayer(),SanctionState.Kind.COMMAND_RESTRICTION)){
         String[] parts=e.getMessage().substring(1).strip().split("\\s+");
         var cmd=plugin.getServer().getPluginCommand(parts[0]);
-        boolean self=cmd!=null&&cmd.getPlugin()==plugin&&cmd.getName().equals("ob")&&(parts.length==1||parts.length==2&&Set.of("account","link","help","punishments","appeal","report","roles").contains(parts[1].toLowerCase(Locale.ROOT))||parts.length==3&&parts[1].equalsIgnoreCase("confirm"));
+        boolean self=cmd!=null&&cmd.getPlugin()==plugin&&cmd.getName().equals("ob")&&(parts.length==1||parts.length==2&&Set.of("account","link","help","punishments","appeal","report","roles").contains(parts[1].toLowerCase(Locale.ROOT))||parts.length==3&&(parts[1].equalsIgnoreCase("confirm")||parts[1].equalsIgnoreCase("help")));
         if(!self)e.setCancelled(true);
     }}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void damage(EntityDamageByEntityEvent e){

@@ -1,0 +1,58 @@
+# OrionBridge | In-game command guide
+# /ob help lists only commands available to the current sender.
+# /ob help <command> shows one command. Changes apply with /ob reload.
+# Use MiniMessage for colors. Usage and descriptions are literal placeholders.
+# Click suggestions use real command names regardless of displayed text.
+theme-version: 1
+header: '<dark_gray><st>                                      </st></dark_gray><newline><gradient:#b48cff:#f5b6ff><bold>✦ OrionBridge</bold></gradient> <gray>• Command Guide</gray><newline><gray>Choose a command to get started.</gray>'
+entry: ' <light_purple>› <usage></light_purple> <dark_gray>—</dark_gray> <gray><description></gray>'
+footer: '<dark_gray><st>                                      </st></dark_gray>'
+click-to-suggest: true
+hover-hint: true
+hover: '<gray>Click to suggest </gray><light_purple><command></light_purple>'
+commands:
+  help:
+    usage: '/ob help [command]'
+    description: 'View available commands and their usage.'
+  account:
+    usage: '/ob account'
+    description: 'Open your account or verification menu.'
+  link:
+    usage: '/ob link'
+    description: 'Link or resume linking your Discord account.'
+  confirm:
+    usage: '/ob confirm <request-id>'
+    description: 'Confirm your own pending Discord account.'
+  return:
+    usage: '/ob return'
+    description: 'Return from the optional verification lobby.'
+  roles:
+    usage: '/ob roles'
+    description: 'View your linked account and rank.'
+  punishments:
+    usage: '/ob punishments'
+    description: 'View your active local punishments.'
+  report:
+    usage: '/ob report'
+    description: 'Send an issue to staff for review.'
+  appeal:
+    usage: '/ob appeal'
+    description: 'View appeal instructions and case IDs.'
+  staffchat:
+    usage: '/ob staffchat <message>'
+    description: 'Send a private staff message.'
+  admin:
+    usage: '/ob admin'
+    description: 'Open the trusted staff control center.'
+  status:
+    usage: '/ob status'
+    description: 'View initialized bridge services.'
+  reload:
+    usage: '/ob reload'
+    description: 'Reload all settings, menus and messages.'
+  lockdown:
+    usage: '/ob lockdown <1-60|off>'
+    description: 'Set or clear Guard lockdown (console only).'
+  verification-off:
+    usage: '/ob verification-off'
+    description: 'Emergency verification release (console only).'

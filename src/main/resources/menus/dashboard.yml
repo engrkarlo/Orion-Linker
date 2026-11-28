@@ -3,11 +3,14 @@
 # Shared across Java dialogs, chest menus and Bedrock forms. Not the linking screen.
 # Use MiniMessage colors, e.g. <light_purple>Text</light_purple>. Keep placeholders.
 # Existing custom values are retained. Restart Paper to apply changes.
-theme-version: 2
+theme-version: 3
 title-prefix: '<light_purple>OrionBridge</light_purple> <gray>·</gray> '
 # Button captions and common display labels.
 labels:
   punishments: '<white>Punishments</white>'
+  case-ids: '<white>View case IDs</white>'
+  active-punishments: '<white>Active punishments</white>'
+  player: '<white><name></white>'
   report: '<white>Report</white>'
   appeal: '<white>Appeal a case</white>'
   refresh: '<white>Refresh account</white>'
@@ -43,8 +46,34 @@ headings:
   punishment-request: '<white>Punishment request</white>'
   report-an-issue: '<white>Report an issue</white>'
   inspect-account: '<white>Inspect account</white>'
+  request-warning: '<white>Request warning</white>'
+  request-mute: '<white>Request mute</white>'
+  request-freeze: '<white>Request freeze</white>'
+  request-quarantine: '<white>Request quarantine</white>'
+  request-build-restriction: '<white>Request build restriction</white>'
+  request-worldedit-restriction: '<white>Request WorldEdit restriction</white>'
+  request-temp-ban: '<white>Request temporary ban</white>'
 # Java inventory item material names. Invalid names use built-in icons.
 materials:
+  player: PLAYER_HEAD
+  refresh: CLOCK
+  players: PLAYER_HEAD
+  search: COMPASS
+  performance: CLOCK
+  account: BOOK
+  request: IRON_AXE
+  back: ARROW
+  previous: ARROW
+  next: ARROW
+  case-ids: BOOK
+  active-punishments: BOOK
+  type-warning: PAPER
+  type-mute: PAPER
+  type-freeze: PAPER
+  type-quarantine: PAPER
+  type-build-restriction: PAPER
+  type-worldedit-restriction: PAPER
+  type-temp-ban: PAPER
   report: PAPER
   appeal: WRITABLE_BOOK
   punishments: BOOK
@@ -57,6 +86,8 @@ layout:
   dialog-columns: 2
   dialog-button-width: 150
   input-width: 240
+  input-placeholder: ''
+  italic-items: false
   # Java chest rows (3–6); slots start at 0. Empty button-slots = automatic placement.
   inventory-rows: 3
   information-slot: 0

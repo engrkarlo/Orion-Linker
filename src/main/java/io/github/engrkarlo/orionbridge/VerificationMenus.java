@@ -23,14 +23,14 @@ final class VerificationMenus implements Listener,AutoCloseable {
     private final YamlConfiguration dialogs,inventory,bedrock;
     private final boolean inventoryFirst;
     private final MiniMessage mm=MiniMessage.miniMessage();
+    private boolean open=true;
     VerificationMenus(OrionBridge plugin,YamlConfiguration cfg)throws Exception{
         this.plugin=plugin;inventoryFirst=cfg.getString("verification.java-interface","DIALOG").equalsIgnoreCase("INVENTORY");
         dialogs=load("java-dialogs.yml");inventory=load("java-inventory.yml");bedrock=load("bedrock-forms.yml");
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
     }
     private YamlConfiguration load(String name)throws Exception{
-        String path="menus/"+name;File file=new File(plugin.getDataFolder(),path);if(!file.exists())plugin.saveResource(path,false);
-        var theme=new YamlConfiguration();theme.load(file);return theme;
+        return plugin.theme(name.replace(".yml",""));
     }
     private Component formatted(YamlConfiguration theme,String key,String fallback,VerificationState.Session s,String invite){
         String value=theme.getString(key,fallback);
@@ -51,41 +51,42 @@ final class VerificationMenus implements Listener,AutoCloseable {
     }
     private Component label(YamlConfiguration theme,Action a,VerificationState.Session s,String invite){return formatted(theme,"buttons."+a.label()+".name",a.label(),s,invite);}
     void show(Player p,VerificationState.Session s,String invite,Runnable request,Runnable refresh,Runnable confirm,Runnable close){
+        if(!open)return;
         var edition=Bedrock.detect(p);
         if(edition==Bedrock.Detection.BEDROCK){
             Screen sc=screen(bedrock,s,invite,request,refresh,confirm,close);var legacy=LegacyComponentSerializer.legacySection();
             List<Bedrock.Button> buttons=sc.actions().stream().map(a->new Bedrock.Button(legacy.serialize(label(bedrock,a,s,invite)),bedrock.getString("buttons."+a.label()+".image",""))).toList();
-            if(Bedrock.show(p,plugin,legacy.serialize(sc.title()),legacy.serialize(sc.body()),buttons,i->{if(i>=0&&i<sc.actions().size())sc.actions().get(i).run();},()->{}))return;
+            if(Bedrock.show(p,plugin,legacy.serialize(sc.title()),legacy.serialize(sc.body()),buttons,i->{if(open&&i>=0&&i<sc.actions().size())sc.actions().get(i).run();},()->{}))return;
         }else if(edition==Bedrock.Detection.JAVA){
             if(!inventoryFirst){
                 Screen sc=screen(dialogs,s,invite,request,refresh,confirm,close);
-                if(JavaDialogs.show(p,plugin,sc.title(),sc.body(),null,sc.actions().stream().map(a->new JavaDialogs.Button(label(dialogs,a,s,invite),null)).toList(),Math.max(1,Math.min(2,dialogs.getInt("columns",1))),Math.max(50,Math.min(300,dialogs.getInt("button-width",160))),-1,i->{if(i>=0&&i<sc.actions().size())sc.actions().get(i).run();}))return;
+                if(JavaDialogs.show(p,plugin,sc.title(),sc.body(),null,sc.actions().stream().map(a->new JavaDialogs.Button(label(dialogs,a,s,invite),null)).toList(),Math.max(1,Math.min(2,dialogs.getInt("columns",1))),Math.max(50,Math.min(300,dialogs.getInt("button-width",160))),-1,i->{if(open&&i>=0&&i<sc.actions().size())sc.actions().get(i).run();}))return;
             }
             try{showInventory(p,s,invite,request,refresh,confirm,close);return;}catch(RuntimeException|LinkageError ignored){}
         }
         Screen sc=screen(dialogs,s,invite,request,refresh,confirm,close);p.sendMessage(sc.title());p.sendMessage(sc.body());
-        if(s.hasCode(System.currentTimeMillis()))p.sendMessage(Component.text(s.code()).clickEvent(ClickEvent.copyToClipboard(s.code())));
-        if(s.claimant()!=null&&s.request()!=null&&!s.confirmed())p.sendMessage(Component.text("/ob confirm "+s.request()).clickEvent(ClickEvent.suggestCommand("/ob confirm "+s.request())));
-        else if(!s.verified(System.currentTimeMillis()))p.sendMessage(Component.text("/ob link").clickEvent(ClickEvent.suggestCommand("/ob link")));
+        if(s.hasCode(System.currentTimeMillis()))p.sendMessage(plugin.messages().render("verification.copy-code","code",s.code()).clickEvent(ClickEvent.copyToClipboard(s.code())));
+        if(s.claimant()!=null&&s.request()!=null&&!s.confirmed())p.sendMessage(plugin.messages().render("verification.confirm-hint","command","/ob confirm "+s.request()).clickEvent(ClickEvent.suggestCommand("/ob confirm "+s.request())));
+        else if(!s.verified(System.currentTimeMillis()))p.sendMessage(plugin.messages().render("verification.link-hint","command","/ob link").clickEvent(ClickEvent.suggestCommand("/ob link")));
     }
     private void showInventory(Player p,VerificationState.Session s,String invite,Runnable request,Runnable refresh,Runnable confirm,Runnable close){
         Screen sc=screen(inventory,s,invite,request,refresh,confirm,close);
         Holder holder=new Holder(p.getUniqueId());int size=Math.max(27,Math.min(54,inventory.getInt("size",27)/9*9));
         holder.inventory=Bukkit.createInventory(holder,size,sc.title());
         Material filler=material(inventory.getString("filler-material","BLACK_STAINED_GLASS_PANE"),Material.BLACK_STAINED_GLASS_PANE);
-        ItemStack fill=new ItemStack(filler);var fm=fill.getItemMeta();fm.displayName(Component.text(" "));fill.setItemMeta(fm);
+        ItemStack fill=new ItemStack(filler);var fm=fill.getItemMeta();fm.displayName(TextTheme.format(inventory.getString("filler-name"," ")));fill.setItemMeta(fm);
         for(int slot=0;slot<size;slot++)if(slot<9||slot>=size-9||slot%9==0||slot%9==8)holder.inventory.setItem(slot,fill.clone());
         ItemStack info=new ItemStack(material(inventory.getString("information-material","BOOK"),Material.BOOK));var im=info.getItemMeta();
-        im.displayName(sc.title().decoration(TextDecoration.ITALIC,false));im.lore(List.of(sc.body().decoration(TextDecoration.ITALIC,false)));info.setItemMeta(im);
+        im.displayName(sc.title().decoration(TextDecoration.ITALIC,inventory.getBoolean("italic-items",false)));im.lore(List.of(sc.body().decoration(TextDecoration.ITALIC,inventory.getBoolean("italic-items",false))));info.setItemMeta(im);
         int infoSlot=Math.max(9,Math.min(size-10,inventory.getInt("information-slot",13)));holder.inventory.setItem(infoSlot,info);
         for(int i=0;i<sc.actions().size();i++){
             Action a=sc.actions().get(i);int slot=Math.max(9,Math.min(size-10,inventory.getInt(i==0?"primary-slot":"secondary-slot",i==0?11:15)));
             if(slot==infoSlot||holder.actions.containsKey(slot))slot=java.util.stream.IntStream.range(9,size-9).filter(n->n!=infoSlot&&!holder.actions.containsKey(n)).findFirst().orElseThrow();
             ItemStack item=new ItemStack(material(inventory.getString("buttons."+a.label()+".material","PAPER"),Material.PAPER));
-            var meta=item.getItemMeta();meta.displayName(label(inventory,a,s,invite).decoration(TextDecoration.ITALIC,false));item.setItemMeta(meta);holder.inventory.setItem(slot,item);holder.actions.put(slot,a.run());
+            var meta=item.getItemMeta();meta.displayName(label(inventory,a,s,invite).decoration(TextDecoration.ITALIC,inventory.getBoolean("italic-items",false)));item.setItemMeta(meta);holder.inventory.setItem(slot,item);holder.actions.put(slot,a.run());
         }
         p.openInventory(holder.inventory);
-        if(s.hasCode(System.currentTimeMillis()))p.sendMessage(Component.text(s.code()).clickEvent(ClickEvent.copyToClipboard(s.code())));
+        if(s.hasCode(System.currentTimeMillis()))p.sendMessage(plugin.messages().render("verification.copy-code","code",s.code()).clickEvent(ClickEvent.copyToClipboard(s.code())));
     }
     private Material material(String name,Material fallback){Material m=Material.matchMaterial(name);return m!=null&&m.isItem()&&!m.isAir()?m:fallback;}
     private static final class Holder implements InventoryHolder{
@@ -98,8 +99,8 @@ final class VerificationMenus implements Listener,AutoCloseable {
         if(!(e.getView().getTopInventory().getHolder() instanceof Holder h))return;
         boolean prior=e.isCancelled();e.setCancelled(true);
         if(prior||!(e.getWhoClicked() instanceof Player p)||!h.player.equals(p.getUniqueId())||e.getRawSlot()<0||e.getRawSlot()>=h.inventory.getSize()||e.getClick()!=ClickType.LEFT&&e.getClick()!=ClickType.RIGHT)return;
-        Runnable action=h.actions.get(e.getRawSlot());if(action!=null&&h.used.compareAndSet(false,true))plugin.getServer().getScheduler().runTask(plugin,()->{if(p.isOnline()&&p.getOpenInventory().getTopInventory().getHolder()==h)action.run();});
+        Runnable action=h.actions.get(e.getRawSlot());if(action!=null&&h.used.compareAndSet(false,true))plugin.getServer().getScheduler().runTask(plugin,()->{if(open&&p.isOnline()&&p.getOpenInventory().getTopInventory().getHolder()==h)action.run();});
     }
     @EventHandler(priority=EventPriority.HIGHEST) public void drag(InventoryDragEvent e){if(owns(e.getView().getTopInventory()))e.setCancelled(true);}
-    @Override public void close(){HandlerList.unregisterAll(this);}
+    @Override public void close(){open=false;HandlerList.unregisterAll(this);}
 }
