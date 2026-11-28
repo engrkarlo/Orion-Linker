@@ -29,7 +29,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final DurableLockdown lockdownState;
     private record AlertKey(UUID player,String kind){}
     private final Map<AlertKey,Long> lastAlert=new ConcurrentHashMap<>();
-    private final GuardContainment containment=new GuardContainment();
+    private final GuardContainment containment;
     private final Map<String,GuardContainment.Rule> rules;
     private final Map<UUID,Counter> blocks=new HashMap<>();
     private final Map<UUID,Counter> containers=new HashMap<>();
@@ -46,6 +46,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     OrionGuard(OrionBridge plugin,YamlConfiguration config,VerificationGate gate,LocalModeration moderation,SecurityAudit audit){
         this.plugin=plugin;this.gate=gate;this.moderation=moderation;this.audit=audit;
         lockdownState=new DurableLockdown(plugin.getDataFolder().toPath().resolve("guard-lockdown.state"),System.currentTimeMillis());
+        containment=new GuardContainment(plugin.getDataFolder().toPath().resolve("guard-containment"),System.currentTimeMillis());
         Map<String,Profile> loaded=new HashMap<>();
         var section=config.getConfigurationSection("guard.profiles");
         if(section!=null)for(String name:section.getKeys(false)){
@@ -137,7 +138,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         var type=policy.type();
         if(type==GuardContainment.Type.LOCKDOWN){
             try{lockdownState.extend(now+policy.seconds()*1000L);}catch(java.io.UncheckedIOException e){plugin.getLogger().severe("Automatic lockdown active in memory but could not be persisted; check guard state storage.");}
-        }else if(player!=null&&identity!=null)containment.apply(player,type,now+policy.seconds()*1000L);
+        }else if(player!=null&&identity!=null){try{containment.apply(identity,type,now+policy.seconds()*1000L);}catch(java.io.UncheckedIOException|IllegalStateException e){plugin.getLogger().severe("Automatic containment storage/capacity failure; inspect Guard state.");}}
         else type=GuardContainment.Type.ALERT;
         evidence(kind,identity,"Severity="+policy.severity()+"; response="+type+"; duration="+(type==GuardContainment.Type.ALERT?0:policy.seconds())+"s; "+detail,source);
     }
@@ -148,9 +149,16 @@ final class OrionGuard implements Listener,AutoCloseable {
             if(prior==null||now-prior>=5000&&lastAlert.replace(key,prior,now))evidence(kind,plugin.identities().resolve(p),"Player "+p.getName()+"; "+detail,"OrionGuard");
         }
     }
-    private boolean frozen(UUID id){return containment.denied(id,GuardContainment.Type.FREEZE,System.currentTimeMillis())||lockdown()&&!profile(id).lockdown();}
+    private String subject(UUID id){
+        if(id==null)return null;
+        if(org.bukkit.Bukkit.isPrimaryThread()){
+            Player p=plugin.getServer().getPlayer(id);return p==null?null:plugin.identities().resolve(p);
+        }
+        var s=gate==null?null:gate.session(id);return s!=null?s.identity():moderation==null?null:moderation.identity(id);
+    }
+    private boolean frozen(UUID id){return containment.denied(subject(id),GuardContainment.Type.FREEZE,System.currentTimeMillis())||lockdown()&&!profile(id).lockdown();}
     private boolean blocked(Player p){return frozen(p.getUniqueId());}
-    private boolean denied(Player p,GuardContainment.Type type){return blocked(p)||containment.denied(p.getUniqueId(),type,System.currentTimeMillis());}
+    private boolean denied(Player p,GuardContainment.Type type){return blocked(p)||containment.denied(subject(p.getUniqueId()),type,System.currentTimeMillis());}
     private boolean safeCommand(String raw,Command command){
         if(!(command instanceof PluginIdentifiableCommand owned))return false;
         return owned.getPlugin()==plugin&&command.getName().equals("ob")
@@ -212,7 +220,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         rule(player,actor,"EXPLOSION_ACTIVITY","Explosion affected "+e.blockList().size()+" candidate blocks; world="+e.getLocation().getWorld().getName()+"; actual result not confirmed","OrionGuard");
     }
     int operationLimit(UUID player,String world){
-        if(!open||!worldEditReady||protectedWorlds.contains(world)||frozen(player)||containment.denied(player,GuardContainment.Type.WORLDEDIT_RESTRICTION,System.currentTimeMillis())||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
+        if(!open||!worldEditReady||protectedWorlds.contains(world)||frozen(player)||containment.denied(subject(player),GuardContainment.Type.WORLDEDIT_RESTRICTION,System.currentTimeMillis())||moderation!=null&&moderation.denied(player,SanctionState.Kind.WORLDEDIT_RESTRICTION,SanctionState.Kind.BUILD_RESTRICTION,SanctionState.Kind.QUARANTINE,SanctionState.Kind.FREEZE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN))return 0;
         return profile(player).editLimit();
     }
     boolean enforceEdits(){return blockEdits;}

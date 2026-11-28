@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Persist individual automatic containment by authenticated identity with independent deadlines and bounded storage.
 - Preserve unexpired linking challenges across client reconnects; discard stale session IDs, confirmations and authorization leases. Avoid opening verification menus before AuthMe authentication and recheck identity on player actions.
 - Deny resolved WorldEdit/FAWE commands when required edit hooks are unavailable; add configurable dashboard heading/icon keys and route formal appeals through the native Discord panel.
 - Document matched live load benchmark procedure and acceptance gates.

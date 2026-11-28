@@ -49,7 +49,7 @@ Case states distinguish pending approval, delivery, and platform receipts. A Dis
 
 ## Lockdown storage
 
-The local deadline is saved atomically to `plugins/OrionBridge/guard-lockdown.state`. Keep this file with backups; an expired deadline is not restarted. A failed manual save is not acknowledged; an automatic storage failure is logged and remains enforced in memory only. Invalid saved data prevents normal Guard initialization; investigate before reopening. Individual automatic containment remains process-local.
+The local deadline is saved atomically to `plugins/OrionBridge/guard-lockdown.state`. Keep this file with backups; an expired deadline is not restarted. A failed manual save is not acknowledged; an automatic storage failure is logged and remains enforced in memory only. Invalid saved data prevents normal Guard initialization; investigate before reopening. Individual automatic containment is also stored by authenticated identity in guard-containment/ and retains independent absolute deadlines. Storage or capacity failures are logged. No deadline is extended merely by restart.
 
 ## Menu customization and performance
 

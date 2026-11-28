@@ -47,6 +47,7 @@ final class LocalModeration implements Listener,AutoCloseable {
         });}catch(RuntimeException ignored){/* The persisted sanction is checked on the next event/login. */}
         return result;
     }
+    String identity(UUID player){return online.get(player);}
     boolean denied(UUID player,SanctionState.Kind... kinds){return open.get()&&state.has(online.get(player),System.currentTimeMillis(),kinds);}
     private boolean has(Player p,SanctionState.Kind... kinds){return open.get()&&state.has(online.get(p.getUniqueId()),System.currentTimeMillis(),kinds);}
     private boolean frozen(Player p){return has(p,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN);}
