@@ -109,6 +109,7 @@ function createSecurityStore({file,secret,now=Date.now}){
       if(!c||c.state!=='PENDING_APPROVAL'||c.actor===actor||(c.expires!==null&&c.expires<=now()))throw Error('Case cannot be approved')
       if(!localTypes.has(c.type)||!['MINECRAFT_SERVER','GUILD_MINECRAFT'].includes(c.scope))throw Error('Enforcement type not implemented')
       const targets=c.scope==='MINECRAFT_SERVER'?[{server:c.server}]:all('SELECT server FROM servers WHERE guild=? AND active=1',g)
+      if(!targets.length)throw Error('No enabled target servers')
       for(const target of targets)run("INSERT INTO deliveries VALUES(?,?,?,1,'APPLY','PENDING',NULL)",id,g,target.server)
       run("UPDATE cases SET state='PENDING_ENFORCEMENT' WHERE guild=? AND id=?",g,id)
       log(g,c.server,actor,'CASE_APPROVED',id)

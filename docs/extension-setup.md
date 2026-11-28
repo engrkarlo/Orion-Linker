@@ -1,0 +1,21 @@
+# OrionBridge alpha.4 — OrionBot extension setup
+
+**Test environment only.** This is not the full 2.0 release and is not proven raid protection. Keep console access available. Node 22, Paper 26.3/Java 25 and OrionBot Extension Manager SDK v2 are required.
+
+1. Back up Minecraft plugin data and OrionBot data, including the existing pairing key. Stop the test Minecraft server, replace the old OrionBridge JAR with the alpha JAR, and start it. The config migrator adds missing defaults and saves a backup. Do not delete your existing token or config.
+2. Stop OrionBot. Extract the extension ZIP so the manifest is at extensions/orionbridge/manifest.json and the bot folder is alongside it. Restart OrionBot. Enable the extension for the test Discord guild in /extensions. Do not install duplicate copies.
+3. Preserve your existing /mcserver manage Pull pairing. Only the Minecraft host needs an HTTPS reverse proxy. Ensure it forwards the signed v2 paths as well as the snapshot path. No new bot-side listener.
+4. Use /orionbridge manage, select the registered Minecraft server, then Create setup. Merge the private YAML credentials into the plugin config without replacing existing settings. Restart Paper. The credentials are sensitive; never post them in a public channel.
+5. In the extension dashboard choose channels and optionally security staff roles. Ensure security and punishment channels are private to authorized staff, including all Discord role overwrites. The extension rejects channels visible to everyone, but cannot guarantee your other role overwrites are appropriate. Enable Audit and verify successful polling. Enable Moderation only for testing.
+6. To test verification, configure its channel, enable Verification and publish the panel. Then set verification.enabled and verification.setup-complete to true, keep control.enabled true, and set the Discord invite in the Minecraft config. Restart. Use an authenticated test account. For offline Java use an explicit trusted AuthMe realm. Operators are not exempt. Verification leases expire after at most 60 seconds if the bot is unavailable. Console-only ob verification-off is a temporary emergency recovery; correct the config before restarting. Disable the Minecraft gate before turning the Discord extension or verification polling off.
+7. Generate a code in Minecraft, submit it through Link Account in Discord, then confirm the displayed Discord identity in Minecraft. Use /orionbridge account to check the link. Test disconnect, expiry, duplicate accounts and cross-guild isolation.
+8. Observe a test security event in the private channel. View evidence or export JSON. Punish player opens the type selector and a reason/duration/scope form. Supported Minecraft restrictions are mute, freeze, build restriction, quarantine, temporary and permanent ban. A different Manage Server holder must approve. ACTIVE means the local bridge persisted the case, not that every possible gameplay path was blocked. Disabling moderation polling delays pending deliveries and revocations; it does not clear local restrictions.
+9. Network correlation is optional: only enable correlation.enabled and confirm-real-client-addresses when the server actually receives authenticated client addresses, not a proxy shared address. Use the generated guild key across servers in the same guild only. Compare accounts accepts Discord IDs with links or canonical identities. A shared fingerprint is not proof of ownership.
+
+## Configuration and recovery
+
+- Existing Pull/Push telemetry continues; v2 features are Pull-only. Server pairing IDs and credentials must match the guild.
+- Back up data/extensions/orionbridge, data/orionbridge.key and plugin data, including sanction records. Do not expose key files or databases.
+- Use the three menu YAML files for verification messages and layouts. Security options are disabled by default in this prerelease.
+- The extension is not hot-toggleable; restart to replace it. The independent polling worker checks guild enablement.
+- Remaining: live Discord/Paper/Floodgate/AuthMe verification, full staff bypass and permissions, role/chat synchronization, LuckPerms/WorldEdit/FAWE/CoreProtect integrations, cross-platform sanctions and rollback/recovery workflows. See development-status.md and the full plan in the repository.

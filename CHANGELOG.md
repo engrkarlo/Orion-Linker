@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.0-alpha.4
+- Guild-scoped OrionBot extension with independent bounded Pull scheduler, private setup credentials, per-server channel and staff-role selectors, verification panel, evidence exports and case approval/revocation UI.
+- Encrypted audit/control credentials per server and network correlation key per guild; existing telemetry pairing reused.
+- Optional HMAC network fingerprints from authenticated player addresses, 90-day retention, manual comparison only. Raw IPs are not transmitted or stored by this feature.
+- Historical link attribution, persistent Discord alert receipts, active server selection, config v5 migration and SQLite migrations.
+- Standalone extension ZIP built by CI. No live Discord or Minecraft acceptance has been performed; security modules remain opt-in.
+
 ## 2.0.0-alpha.3
 - Session-bound verification leases and two-party linking exchange; experimental gameplay gate and console-only recovery.
 - Configurable Java native dialogs, inventory and Bedrock forms, chat fallback; no plaintext verification code in snapshots or database.

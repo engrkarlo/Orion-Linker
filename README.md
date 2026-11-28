@@ -1,6 +1,6 @@
-# OrionBridge 2.0.0-alpha.3
+# OrionBridge 2.0.0-alpha.4
 
-**Development foundation — not a production security release.** Existing v1 telemetry remains supported. New: opt-in signed Pull audit feed, versioned configuration migration, and central SQLite identity/case/evidence primitives. Opt-in typed local Minecraft moderation supports a subset of sanctions; experimental mandatory verification has a live Pull contract, Java dialog/inventory and Bedrock forms. The production OrionBot adapter, full role/chat sync and third-party security hooks are still pending. See [development status](docs/development-status.md) and [architecture](docs/architecture.md).
+**Development foundation — not a production security release.** Existing v1 telemetry remains supported. New: opt-in signed Pull audit feed, versioned configuration migration, and central SQLite identity/case/evidence primitives. Opt-in typed local Minecraft moderation supports a subset of sanctions; experimental mandatory verification has a live Pull contract, Java dialog/inventory and Bedrock forms. An experimental OrionBot extension is included for Discord verification, evidence, network comparison and Minecraft moderation. Full role/chat sync and third-party security hooks are still pending. See [extension setup](docs/extension-setup.md). See [development status](docs/development-status.md) and [architecture](docs/architecture.md).
 
 Standalone source imported from [OrionBot at cd031ad](https://github.com/engrkarlo/OrionBot/tree/cd031ade390aec6d84f046a297156d86e2eb7f16/OrionBridge). Existing OrionBot integration remains in place during migration.
 
@@ -71,7 +71,7 @@ Click **Performance** on a status card. Regular members can view TPS, MSPT and s
 
 ## Startup and upgrades
 
-The console startup summary credits Karlow and shows the active mode, collection interval, privacy controls and saved-skin availability. It never prints pairing credentials or the remote endpoint. READY means the local session initialized, not that the remote bot has received a snapshot yet. Push delivery backs off on failures, including HTTP 429/503 retry timing; reload and shutdown release the old HTTP client. No new configuration fields are required. Replacing the JAR does not replace an existing `plugins/OrionBridge/config.yml`; retain the data folder and current token.
+The console startup summary credits Karlow and shows the active mode, collection interval, privacy controls and saved-skin availability. It never prints pairing credentials or the remote endpoint. READY means the local session initialized, not that the remote bot has received a snapshot yet. Push delivery backs off on failures, including HTTP 429/503 retry timing; reload and shutdown release the old HTTP client. Existing telemetry settings are preserved; versioned migration adds disabled security settings and saves a backup. Replacing the JAR does not replace an existing `plugins/OrionBridge/config.yml`; retain the data folder and current token.
 
 ## Reload and manage tokens
 
@@ -120,7 +120,7 @@ Snapshots include visible player names and UUIDs, textures, ping, server version
 ## Security and technical limits
 
 - Pull uses HTTPS domains on port 443 with public IPv4 DNS resolution, pinned destination addresses and no redirects. The bot encrypts Pull tokens using `data/orionbridge.key` (mode 0600 on Unix). Protect and back up this key alongside the database. Push stores only a token hash.
-- The Minecraft listener serves read-only snapshots; credentials are checked before returning data. The plugin does not log the token. Use HTTPS for remote connections; restrict access to plaintext backend ports.
+- The Minecraft listener serves authenticated snapshots and opt-in separately signed security endpoints; credentials are checked before returning data. The plugin does not log the token. Use HTTPS for remote connections; restrict access to plaintext backend ports.
 - Snapshots expire after 90 seconds; the public status API is used if live bridge data cannot be obtained. Payloads are capped at 1 MiB, visible rosters at 2,000 entries, and timestamp skew at two minutes. Plugin collection interval: 5–30 seconds; bot Pull polling minimum interval: 5–60 seconds.
 - Bukkit reads happen on the main thread. Network operations and optional saved-skin lookup run on a single worker with no overlapping collections. The bot Push listener is disabled unless its public URL is set.
 
@@ -132,6 +132,6 @@ From this repository root with JDK 25 and Maven 3.9+:
 mvn -B -f pom.xml clean verify
 ```
 
-Output: `target/OrionBridge-2.0.0-alpha.3.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
+Output: `target/OrionBridge-2.0.0-alpha.4.jar`. The POM pins Paper API `26.3.build.263-stable` as a provided dependency; the optional SkinsRestorer and Floodgate plugins are not bundled. The GitHub workflow attempts to build with the official API and uploads the JAR on success; check the run result rather than assuming an artifact exists.
 
 [OrionBot host project](https://github.com/engrkarlo/OrionBot)

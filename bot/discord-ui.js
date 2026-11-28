@@ -9,7 +9,7 @@ const select=(action,placeholder,options)=>row({type:3,custom_id:'ob2:'+action,p
 const card=(components,{private:priv=true,color=0x8b5cf6}={})=>({flags:V2|(priv?PRIVATE:0),allowedMentions:{parse:[],repliedUser:false},components:[{type:17,accent_color:color,components}]})
 const notice=(title,body,error=false)=>card([text('## '+esc(title)),text(esc(body))],{color:error?0xed4245:0x8b5cf6})
 const modal=(id,title,...inputs)=>({custom_id:'ob2:'+id,title,components:inputs.map(input=>row(input))})
-const input=(id,label,value='',max=500,style=1)=>({type:4,custom_id:id,label,style,value:String(value),required:true,max_length:max})
+const input=(id,label,value='',max=500,style=1)=>({type:4,custom_id:id,label,style,...(value!==''?{value:String(value)}:{}),required:true,max_length:max})
 function servers(list){return card([text('## OrionBridge Control Center\nSelect a paired Minecraft server.'),...(list.length?[select('server','Choose server',list.map(s=>({label:String(s.name).slice(0,100),value:s.id})))]:[text('No Pull-paired Java servers. Configure one through /mcserver manage first.')])])}
 function manager(server,c,health){
  const id=server.id

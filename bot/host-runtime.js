@@ -55,7 +55,7 @@ function createHostRuntime({client,manager,registry,dir=manager.dataDir,fetcher=
   let keys
   try{keys=settings.keys(g,id)}catch{health.set(k,'Credential error');return}
   const statuses=[]
-  async function step(name,enabled,fn){if(!enabled||stopped)return;try{await fn();statuses.push(name+' OK')}catch{statuses.push(name+' unavailable')}}
+  async function step(name,enabled,fn){if(!enabled||stopped||!settings.get(g,id)?.[name.toLowerCase()]||!servers(g).some(x=>x.id===id&&x.bridgePull.secret===s.bridgePull.secret&&x.bridgePull.origin===s.bridgePull.origin))return;try{await fn();statuses.push(name+' OK')}catch{statuses.push(name+' unavailable')}}
   await step('Verification',c.verification,()=>verification.poll(config(g,s,keys.control)))
   await step('Moderation',c.moderation,async()=>{
    const results=await deliverModeration({...config(g,s,keys.control),store,fetcher})
@@ -92,7 +92,7 @@ function createHostRuntime({client,manager,registry,dir=manager.dataDir,fetcher=
  async function failure(i){try{await respond(i,ui.notice('Unable to complete action','Check permissions, pairing, configuration, or submitted values. No enforcement is assumed without a receipt.',true))}catch{}}
  function account(g,d){const l=store.findDiscord(g,d);return ui.notice('My account',l?'Linked identity: '+l.identity+' · One link per guild.':'No linked Minecraft identity in this guild.')}
  async function command(i){
-  try{ready(i);await defer(i);if(i.options.getSubcommand()==='account')return await respond(i,account(i.guildId,i.user.id));await authorize(i,null,true);return await respond(i,ui.servers(servers(i.guildId)))}catch{await failure(i)}
+  try{ready(i);await defer(i);if(i.options.getSubcommand()==='account'){if(!await member(i.guildId,i.user.id))throw Error('Guild membership required');return await respond(i,account(i.guildId,i.user.id))}await authorize(i,null,true);return await respond(i,ui.servers(servers(i.guildId)))}catch{await failure(i)}
  }
  function resolveIdentity(g,value){value=value.trim();if(SNOW.test(value)){const l=store.findDiscord(g,value);if(!l)throw Error('Unlinked account');return l.identity}return identity(value)}
  async function interaction(i){
@@ -108,7 +108,7 @@ function createHostRuntime({client,manager,registry,dir=manager.dataDir,fetcher=
    const modalActions=['link','punish-type','revoke','compare']
    if(!modalActions.includes(action))await defer(i)
    if(publicActions.includes(action)){
-    if(action==='account'){await respond(i,account(g,i.user.id));return true}
+    if(action==='account'){if(!await member(g,i.user.id))throw Error('Guild membership required');await respond(i,account(g,i.user.id));return true}
     if(!c?.verification||i.channelId!==c.verifyChannel)throw Error('Verification panel inactive')
     if(action==='help'){await respond(i,ui.notice('Linking help','Join Minecraft, generate a private code, submit it here, then confirm the Discord identity in Minecraft.'));return true}
     if(action==='link'){await i.showModal(ui.modal('claim:'+sid,'Link Minecraft account',ui.input('code','Private verification code','',32)));return true}

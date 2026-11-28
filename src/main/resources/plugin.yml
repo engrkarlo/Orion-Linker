@@ -1,8 +1,8 @@
 name: OrionBridge
-version: '2.0.0-alpha.3'
+version: '2.0.0-alpha.4'
 main: io.github.engrkarlo.orionbridge.OrionBridge
 api-version: '26.3'
-description: Read-only authenticated telemetry and live player textures for OrionBot.
+description: Authenticated telemetry, experimental identity and security bridge for OrionBot.
 author: Karlow
 softdepend: [SkinsRestorer, floodgate, AuthMe, Geyser-Spigot]
 permissions:
