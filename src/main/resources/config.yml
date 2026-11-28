@@ -117,6 +117,8 @@ guard:
 # Groups with unknown or dangerous inherited permissions are rejected.
 roles:
   enabled: false
+  # Bounded read-only LuckPerms lookup for previously verified Java identities.
+  offline-reconciliation: true
   allowed-groups: []
   allowed-permissions: []
 

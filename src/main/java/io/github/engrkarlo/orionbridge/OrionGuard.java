@@ -89,7 +89,7 @@ final class OrionGuard implements Listener,AutoCloseable {
     boolean open(){return open;}
     Profile profile(UUID id){return gate==null||moderation!=null&&moderation.denied(id,SanctionState.Kind.ROLE_SUSPENSION,SanctionState.Kind.FREEZE,SanctionState.Kind.QUARANTINE,SanctionState.Kind.TEMP_BAN,SanctionState.Kind.PERMANENT_BAN)?ORDINARY:profiles.getOrDefault(Objects.toString(gate.profile(id),""),ORDINARY);}
     String identity(UUID id){return gate==null?null:gate.linkedIdentity(id);}
-    boolean staffChat(UUID id){return profile(id).staffChat();}
+    boolean staffChat(UUID id){return !frozen(id)&&profile(id).staffChat();}
     boolean profileStaffChat(String name){return profiles.getOrDefault(name,ORDINARY).staffChat();}
     Set<String> profiles(){return profiles.keySet();}
     boolean lockdown(){return lockdownUntil.get()>System.currentTimeMillis();}

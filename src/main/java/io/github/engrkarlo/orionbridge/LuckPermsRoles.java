@@ -15,14 +15,50 @@ import java.time.Instant;
 final class LuckPermsRoles implements AutoCloseable {
     private final LuckPerms api=LuckPermsProvider.get();
     private final Set<String> groups,permissions;
+    private final boolean offlineReconciliation;
+    private final java.util.concurrent.Semaphore rankSlots=new java.util.concurrent.Semaphore(4);
     private final Map<UUID,Map<String,InheritanceNode>> owned=new HashMap<>();
     LuckPermsRoles(YamlConfiguration cfg){
+        offlineReconciliation=cfg.getBoolean("roles.offline-reconciliation",true);
         groups=Set.copyOf(cfg.getStringList("roles.allowed-groups"));
         permissions=Set.copyOf(cfg.getStringList("roles.allowed-permissions"));
     }
     String primary(UUID uuid){
         User user=api.getUserManager().getUser(uuid);
         return user==null?"":user.getPrimaryGroup();
+    }
+    /** Signed, bounded queries for previously observed authenticated Java UUIDs.
+     * Runs on the HTTP worker; LuckPerms storage loading is asynchronous. */
+    String rankQuery(String body){
+        if(!offlineReconciliation)return "{\"result\":\"DISABLED\"}";
+        String[] requested=body.split("\\n",-1);
+        if(requested.length<1||requested.length>4||new HashSet<>(Arrays.asList(requested)).size()!=requested.length)throw new IllegalArgumentException("Invalid rank query");
+        for(String id:requested)if(!SanctionState.validIdentity(id)||!id.startsWith("java:"))throw new IllegalArgumentException("Java identity required");
+        Map<String,java.util.concurrent.CompletableFuture<String>> queries=new LinkedHashMap<>();
+        for(String id:requested){
+            String hex=id.substring(5);
+            UUID uuid=UUID.fromString(hex.substring(0,8)+"-"+hex.substring(8,12)+"-"+hex.substring(12,16)+"-"+hex.substring(16,20)+"-"+hex.substring(20));
+            User cached=api.getUserManager().getUser(uuid);
+            if(cached!=null){queries.put(id,java.util.concurrent.CompletableFuture.completedFuture(cached.getPrimaryGroup()));continue;}
+            if(!rankSlots.tryAcquire())continue;
+            try{
+                queries.put(id,api.getUserManager().loadUser(uuid).handle((user,error)->{
+                    try{return error==null&&user!=null?user.getPrimaryGroup():null;}
+                    finally{
+                        try{if(user!=null)api.getUserManager().cleanupUser(user);}finally{rankSlots.release();}
+                    }
+                }));
+            }catch(RuntimeException e){rankSlots.release();}
+        }
+        try{java.util.concurrent.CompletableFuture.allOf(queries.values().toArray(java.util.concurrent.CompletableFuture[]::new)).get(2,java.util.concurrent.TimeUnit.SECONDS);}
+        catch(InterruptedException e){Thread.currentThread().interrupt();}
+        catch(java.util.concurrent.ExecutionException|java.util.concurrent.TimeoutException ignored){}
+        List<String> rows=new ArrayList<>();
+        for(var e:queries.entrySet())if(e.getValue().isDone()&&!e.getValue().isCompletedExceptionally()){
+            String group=e.getValue().getNow(null);
+            if(group!=null&&group.matches("[a-z0-9_-]{1,40}"))rows.add(OrionBridge.quote(e.getKey())+":"+OrionBridge.quote(group));
+        }
+        return "{\"result\":\"OK\",\"groups\":{"+String.join(",",rows)+"}}";
     }
     private boolean safe(String name,Set<String> seen,int depth){
         if(depth>12||!seen.add(name)||!groups.contains(name)||Set.of("admin","administrator","owner","op","operator","staff","moderator","developer").contains(name.toLowerCase(Locale.ROOT)))return false;
