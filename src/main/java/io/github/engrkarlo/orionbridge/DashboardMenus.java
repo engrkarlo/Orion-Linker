@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Local read-only dashboards and audited staff requests; Discord owns approval. */
 final class DashboardMenus implements Listener,AutoCloseable {
-    private record Entry(String name,Material material,Runnable action,UUID head){}
+    private record Entry(String name,Material material,Runnable action,UUID head,String image){Entry(String name,Material material,Runnable action,UUID head){this(name,material,action,head,"");}}
     private final OrionBridge plugin;
     private final YamlConfiguration theme;
     private final MiniMessage mm=MiniMessage.miniMessage();
@@ -38,7 +38,7 @@ final class DashboardMenus implements Listener,AutoCloseable {
     private String label(String key,String fallback){return theme.getString("labels."+key,fallback);}
     private Component component(String value){try{return mm.deserialize(value);}catch(RuntimeException e){return Component.text(value);}}
     private Component title(String title){String key=title.toLowerCase(Locale.ROOT).replace(' ','-');return component(theme.getString("title-prefix","<light_purple>OrionBridge</light_purple> <gray>·</gray> <white>")).append(component(theme.getString("headings."+key,title)));}
-    private Entry button(String key,String fallback,Material material,Runnable run){String value=theme.getString("materials."+key);Material selected=value==null?null:Material.matchMaterial(value);return new Entry(label(key,fallback),selected!=null&&selected.isItem()&&!selected.isAir()?selected:material,run,null);}
+    private Entry button(String key,String fallback,Material material,Runnable run){String value=theme.getString("materials."+key);Material selected=value==null?null:Material.matchMaterial(value);return new Entry(label(key,fallback),selected!=null&&selected.isItem()&&!selected.isAir()?selected:material,run,null,theme.getString("images."+key,""));}
     void account(Player p){
         if(!verified(p)){p.sendMessage(Component.text("Verify first using /ob link."));return;}
         var s=plugin.verification().session(p.getUniqueId());
@@ -129,21 +129,23 @@ final class DashboardMenus implements Listener,AutoCloseable {
         Consumer<Integer> callback=index->{if(index>=0&&index<entries.size()&&usable(p,staff,token)){screens.remove(p.getUniqueId(),token);entries.get(index).action().run();}};
         var detection=Bedrock.detect(p);
         var legacy=LegacyComponentSerializer.legacySection();
-        if(detection==Bedrock.Detection.BEDROCK&&Bedrock.show(p,plugin,legacy.serialize(title(heading)),details,entries.stream().map(e->new Bedrock.Button(legacy.serialize(component(e.name())),"")).toList(),callback,()->{}))return;
-        if(detection==Bedrock.Detection.JAVA&&!interfaceType.equalsIgnoreCase("INVENTORY")&&JavaDialogs.show(p,plugin,title(heading),Component.text(details),null,entries.stream().map(e->new JavaDialogs.Button(component(e.name()),null)).toList(),2,150,-1,callback))return;
+        if(detection==Bedrock.Detection.BEDROCK&&Bedrock.show(p,plugin,legacy.serialize(title(heading)),details,entries.stream().map(e->new Bedrock.Button(legacy.serialize(component(e.name())),e.image())).toList(),callback,()->{}))return;
+        if(detection==Bedrock.Detection.JAVA&&!interfaceType.equalsIgnoreCase("INVENTORY")&&JavaDialogs.show(p,plugin,title(heading),Component.text(details),null,entries.stream().map(e->new JavaDialogs.Button(component(e.name()),null)).toList(),Math.max(1,Math.min(2,theme.getInt("layout.dialog-columns",2))),Math.max(50,Math.min(300,theme.getInt("layout.dialog-button-width",150))),-1,callback))return;
         if(detection!=Bedrock.Detection.JAVA){p.sendMessage(title(heading));p.sendMessage(Component.text(details));return;}
         Holder holder=new Holder(p.getUniqueId(),token,staff,callback);
-        int size=Math.max(27,Math.min(54,((entries.size()+1+8)/9)*9));holder.inventory=Bukkit.createInventory(holder,size,title(heading));
-        var info=new ItemStack(Material.BOOK);var infoMeta=info.getItemMeta();infoMeta.displayName(title(heading));infoMeta.lore(Arrays.stream(details.split("\n")).limit(20).map(Component::text).map(c->c.decoration(TextDecoration.ITALIC,false)).toList());info.setItemMeta(infoMeta);holder.inventory.setItem(0,info);
+        int size=Math.max(Math.max(27,Math.min(54,theme.getInt("layout.inventory-rows",3)*9)),Math.min(54,((entries.size()+1+8)/9)*9));holder.inventory=Bukkit.createInventory(holder,size,title(heading));
+        int infoSlot=Math.max(0,Math.min(size-1,theme.getInt("layout.information-slot",0)));
+        List<Integer> positions=DashboardLayout.slots(size,infoSlot,entries.size(),theme.getIntegerList("layout.button-slots"));
+        var info=new ItemStack(Material.BOOK);var infoMeta=info.getItemMeta();infoMeta.displayName(title(heading));infoMeta.lore(Arrays.stream(details.split("\n")).limit(20).map(Component::text).map(c->c.decoration(TextDecoration.ITALIC,false)).toList());info.setItemMeta(infoMeta);holder.inventory.setItem(infoSlot,info);
         for(int i=0;i<entries.size();i++){
             Entry e=entries.get(i);ItemStack item=new ItemStack(e.material());var meta=item.getItemMeta();
             if(meta instanceof SkullMeta skull&&e.head()!=null){Player target=plugin.getServer().getPlayer(e.head());if(target!=null)skull.setPlayerProfile(target.getPlayerProfile());}
-            meta.displayName(component(e.name()).decoration(TextDecoration.ITALIC,false));item.setItemMeta(meta);holder.inventory.setItem(i+1,item);
+            meta.displayName(component(e.name()).decoration(TextDecoration.ITALIC,false));item.setItemMeta(meta);int slot=positions.get(i);holder.inventory.setItem(slot,item);holder.positions.put(slot,i);
         }
         p.openInventory(holder.inventory);
     }
     private static final class Holder implements InventoryHolder {
-        final UUID owner,token;final boolean staff;final Consumer<Integer> callback;final AtomicBoolean used=new AtomicBoolean();Inventory inventory;
+        final UUID owner,token;final boolean staff;final Consumer<Integer> callback;final AtomicBoolean used=new AtomicBoolean();final Map<Integer,Integer> positions=new HashMap<>();Inventory inventory;
         Holder(UUID owner,UUID token,boolean staff,Consumer<Integer> callback){this.owner=owner;this.token=token;this.staff=staff;this.callback=callback;}
         @Override public Inventory getInventory(){return inventory;}
     }
@@ -151,8 +153,8 @@ final class DashboardMenus implements Listener,AutoCloseable {
     @EventHandler(priority=EventPriority.HIGHEST) public void click(InventoryClickEvent e){
         if(!(e.getView().getTopInventory().getHolder() instanceof Holder holder))return;
         boolean prior=e.isCancelled();e.setCancelled(true);
-        if(prior||!(e.getWhoClicked() instanceof Player p)||!holder.owner.equals(p.getUniqueId())||e.getRawSlot()<1||e.getRawSlot()>=holder.inventory.getSize()||e.getClick()!=ClickType.LEFT&&e.getClick()!=ClickType.RIGHT)return;
-        if(holder.used.compareAndSet(false,true))plugin.getServer().getScheduler().runTask(plugin,()->{if(usable(p,holder.staff,holder.token))holder.callback.accept(e.getRawSlot()-1);});
+        if(prior||!(e.getWhoClicked() instanceof Player p)||!holder.owner.equals(p.getUniqueId())||!holder.positions.containsKey(e.getRawSlot())||e.getClick()!=ClickType.LEFT&&e.getClick()!=ClickType.RIGHT)return;
+        int index=holder.positions.get(e.getRawSlot());if(holder.used.compareAndSet(false,true))plugin.getServer().getScheduler().runTask(plugin,()->{if(usable(p,holder.staff,holder.token))holder.callback.accept(index);});
     }
     @EventHandler public void drag(InventoryDragEvent e){if(owns(e.getView().getTopInventory()))e.setCancelled(true);}
     @EventHandler public void quit(PlayerQuitEvent e){screens.remove(e.getPlayer().getUniqueId());}

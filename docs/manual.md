@@ -53,7 +53,7 @@ The local deadline is saved atomically to `plugins/OrionBridge/guard-lockdown.st
 
 ## Menu customization and performance
 
-The optional `headings` and `materials` keys in `menus/dashboard.yml` customize menu headings and inventory icons; existing labels and title prefix remain supported. Missing or invalid materials fall back to the built-in icon. Existing menu files are preserved; add keys manually and restart. Formal appeals are submitted on the Discord panel. See [live load benchmark](load-testing.md).
+The optional `headings`, `materials`, `images` and `layout` keys in `menus/dashboard.yml` customize headings, inventory icons, Bedrock button images, dialog column/width, inventory rows, information slot and preferred button slots; existing labels and title prefix remain supported. Invalid/colliding slots are skipped and the inventory grows to fit its actions. Missing or invalid materials fall back to the built-in icon. Existing menu files are preserved; add keys manually and restart. Formal appeals are submitted on the Discord panel. See [live load benchmark](load-testing.md).
 
 ## Troubleshooting
 401: check existing token. Clock/signature error: sync clocks and verify guild/server keys. 404: check matching versions and proxy routes. Lease expiry: check bot health and polling, use console recovery if necessary. Missing WorldEdit/FAWE/LP/CoreProtect: check startup logs and supported APIs. A failed or missing hook is not proof of protection. Never use a live raid or production rollback for testing.

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Add configurable Minecraft dashboard rows, button slots, Java dialog width/columns and Bedrock button images with safe layout fallback.
 - Config v12 adds opt-in bounded observed offline AuthMe/noncanonical Bedrock rank queries, and rechecks authenticated identity before local profile/account authorization.
 - Config v11 adds local world/region/operation/command restrictions for named task profiles, non-player edit budgets and direct entity command denial.
 - Persist individual automatic containment by authenticated identity with independent deadlines and bounded storage.

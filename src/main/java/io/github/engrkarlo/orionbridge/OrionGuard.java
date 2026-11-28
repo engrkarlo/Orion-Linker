@@ -102,12 +102,13 @@ final class OrionGuard implements Listener,AutoCloseable {
         },200L,200L);
     }
     private static EditScope readScope(YamlConfiguration cfg,String base){
+        for(String k:List.of("worlds","commands","operations","regions"))if(cfg.contains(base+k)&&!cfg.isList(base+k))throw new IllegalArgumentException("Invalid task scope list: "+k);
         Set<String> worlds=Set.copyOf(cfg.getStringList(base+"worlds")),commands=Set.copyOf(cfg.getStringList(base+"commands"));
         if(worlds.size()>32||worlds.stream().anyMatch(w->w.isBlank()||w.length()>100)||commands.size()>100||commands.stream().anyMatch(c->!c.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")))throw new IllegalArgumentException("Invalid task profile scope");
         var operations=EnumSet.noneOf(EditScope.Operation.class);
         if(!cfg.contains(base+"operations"))operations=EnumSet.allOf(EditScope.Operation.class);
         else for(String op:cfg.getStringList(base+"operations"))operations.add(EditScope.Operation.valueOf(op.toUpperCase(Locale.ROOT)));
-        var rows=cfg.getMapList(base+"regions");if(rows.size()>32)throw new IllegalArgumentException("Too many task regions");
+        var rows=cfg.getMapList(base+"regions");if(cfg.contains(base+"regions")&&rows.size()!=cfg.getList(base+"regions").size())throw new IllegalArgumentException("Invalid task region entries");if(rows.size()>32)throw new IllegalArgumentException("Too many task regions");
         List<EditScope.Region> regions=new ArrayList<>();
         for(var region:rows){
             Object w=region.get("world");if(!(w instanceof String world)||world.isBlank()||world.length()>100)throw new IllegalArgumentException("Invalid task region world");
@@ -198,7 +199,7 @@ final class OrionGuard implements Listener,AutoCloseable {
         // These direct entity operations may bypass the guarded extent. Deny
         // them while WE protection is on instead of claiming complete coverage.
         if(edit&&blockEdits&&Set.of("butcher","remove","killall").contains(name)){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Direct entity command denied; no guarded extent guarantee");return;}
-        if(!blockCommands&&!edit||!sensitive)return;
+        if((!blockCommands&&(!edit||!blockEdits))||!sensitive)return;
         Profile profile=profile(player.getUniqueId());
         boolean allowed=resolved!=null&&(edit?profile.editLimit()>0&&profile.scope().permitsCommand(owner,name):profile.commands().contains(owner+":"+name));
         if(!allowed){e.setCancelled(true);alert(player,"GUARD_COMMAND_BLOCKED","Blocked sensitive command category "+name+"; resolved owner="+owner);player.sendMessage(Component.text("OrionGuard: this operation requires an approved staff profile."));}

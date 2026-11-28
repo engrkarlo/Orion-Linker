@@ -25,3 +25,13 @@ materials:
   appeal: WRITABLE_BOOK
   punishments: BOOK
   admin: NETHER_STAR
+
+# Optional layout preferences. Invalid, duplicate and occupied slots are skipped.
+layout:
+  dialog-columns: 2
+  dialog-button-width: 150
+  inventory-rows: 3
+  information-slot: 0
+  button-slots: []
+# Bedrock form button image paths, using the same keys as labels.
+images: {}
