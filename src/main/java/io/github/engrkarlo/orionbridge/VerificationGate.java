@@ -182,6 +182,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         Player p=plugin.getServer().getPlayer(player);
         if(p==null||!p.isOnline()||!identity.equals(identities.fresh(p)))return "STALE";
         long now=System.currentTimeMillis();String result;
+        var prior=state.get(player);
         switch(fields[0]){
             case "OFFER"->{if(fields.length!=7)return "INVALID";result=state.offer(player,session,identity,UUID.fromString(fields[4]),fields[5],Long.parseLong(fields[6]),now);}
             case "RESUME"->{if(fields.length!=8)return "INVALID";result=state.resume(player,session,identity,fields[4].equals("-")?null:UUID.fromString(fields[4]),UUID.fromString(fields[5]),fields[6],Long.parseLong(fields[7]),now);}
@@ -211,7 +212,7 @@ final class VerificationGate implements Listener,AutoCloseable {
         if(result.equals("APPLIED")){
             cachedSnapshot=null;
             boolean verified=state.get(player).verified(now);
-            if(force&&(!verified||!Boolean.TRUE.equals(wasVerified.get(player)))||!force&&state.get(player).request()!=null&&lastShown.containsKey(player))show(p);
+            if(force&&(!verified||!Boolean.TRUE.equals(wasVerified.get(player)))||!force&&prior!=null&&prior.request()!=null&&lastShown.containsKey(player))show(p);
             wasVerified.put(player,verified);
         }
         return result;

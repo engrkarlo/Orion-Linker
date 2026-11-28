@@ -10,6 +10,7 @@ final class SetupRequestSmoke {
         check(s.consume("bad",now)==null);
         check(s.consume(p.id(),now)!=null);check(s.consume(p.id(),now)==null);
         code=s.open(now);check(s.stage(code+suffix,token,now+300000)==null);
+        code=s.open(now);check(s.stage(code+suffix+"\nUNKNOWN",token,now)==null);var feature=s.stage(code+suffix+"\nCHAT",token,now);check(feature!=null&&feature.credentials().feature().equals("CHAT"));s.cancel();
         code=s.open(now);s.cancel();check(s.stage(code+suffix,token,now)==null);
         System.out.println("SetupRequestSmoke passed");
     }

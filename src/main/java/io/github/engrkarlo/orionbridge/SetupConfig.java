@@ -29,27 +29,58 @@ final class SetupConfig {
         if(!"pull".equals(root.getString("mode"))||!c.distinct(root.getString("token","")))throw new IOException("Setup requires Pull and distinct credentials");
         var p=plan(dir,c);
         var j=new YamlConfiguration();
-        j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
+        j.set("feature",c.feature());j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
         // Only new services are automatically activated. Existing settings remain exactly as chosen.
         j.set("enable-audit",p.audit().getString("audit.signing-key","").isEmpty());
         j.set("enable-control",p.control().getString("control.signing-key","").isEmpty());
+        featurePlan(dir,c.feature()); // Validate all affected files before committing the intent.
         CategoryConfig.save(journal(dir),j);
         recover(dir);
+    }
+    private static java.util.Map<String,YamlConfiguration> featurePlan(Path dir,String action)throws Exception{
+        if(action.equals("CREDENTIALS"))return java.util.Map.of();
+        var v=CategoryConfig.read(dir.resolve("config/verification.yml"));
+        var chat=CategoryConfig.read(dir.resolve("config/chat.yml"));
+        var control=CategoryConfig.read(dir.resolve("config/control.yml"));
+        boolean active=v.getBoolean("verification.enabled")&&v.getBoolean("verification.setup-complete");
+        boolean force=active&&v.getBoolean("verification.force",true);
+        // Explicitly enabled features never downgrade a previously active forced policy.
+        switch(action){
+            case "CHAT"->{
+                boolean existing=chat.getBoolean("chat.enabled");
+                chat.set("chat.enabled",true);
+                if(!existing)chat.set("chat.require-link",force);
+                return java.util.Map.of("chat",chat);
+            }
+            case "LINK"->{
+                if(!active){v.set("verification.enabled",true);v.set("verification.setup-complete",true);v.set("verification.force",false);}
+                if(v.getBoolean("verification.lobby.enabled")&&!v.getBoolean("verification.force",true))throw new IOException("Disable the verification lobby before enabling optional linking");
+                return java.util.Map.of("verification",v);
+            }
+            case "FORCE"->{
+                if(!active)throw new IOException("Enable and test optional account linking first");
+                v.set("verification.force",true);
+                return java.util.Map.of("verification",v);
+            }
+            default->throw new IOException("Unknown setup feature");
+        }
     }
     static void recover(Path dir)throws Exception{
         if(Files.notExists(journal(dir),LinkOption.NOFOLLOW_LINKS))return;
         var j=CategoryConfig.read(journal(dir));
-        var c=new SetupRequest.Credentials(j.getString("guild",""),j.getString("server",""),j.getString("actor",""),j.getString("audit",""),j.getString("control",""),j.getString("network",""));
+        var c=new SetupRequest.Credentials(j.getString("guild",""),j.getString("server",""),j.getString("actor",""),j.getString("audit",""),j.getString("control",""),j.getString("network",""),j.getString("feature","CREDENTIALS"));
         var root=CategoryConfig.readRoot(dir);
         if(!"pull".equals(root.getString("mode"))||!c.distinct(root.getString("token","")))throw new IOException("Pending setup no longer matches connection");
         if(!j.isBoolean("enable-audit")||!j.isBoolean("enable-control"))throw new IOException("Invalid setup journal");
         var p=plan(dir,c);
+        var feature=featurePlan(dir,c.feature());
         p.audit().set("audit.guild-id",c.guild());p.audit().set("audit.server-id",c.server());p.audit().set("audit.signing-key",c.audit());
         p.control().set("control.signing-key",c.control());p.correlation().set("correlation.guild-key",c.network());
         if(j.getBoolean("enable-audit"))p.audit().set("audit.enabled",true);
         if(j.getBoolean("enable-control"))p.control().set("control.enabled",true);
-        // Never enable correlation, verification, Guard or any enforcement here.
-        for(var e:java.util.Map.of("audit",p.audit(),"control",p.control(),"correlation",p.correlation()).entrySet()){
+        // Scope and keys first, feature activation last. Never enable correlation/Guard or rollback.
+        var files=new java.util.LinkedHashMap<String,YamlConfiguration>();files.put("audit",p.audit());files.put("control",p.control());files.put("correlation",p.correlation());files.putAll(feature);
+        for(var e:files.entrySet()){
             Path file=dir.resolve("config/"+e.getKey()+".yml");
             if(!CategoryConfig.same(CategoryConfig.read(file),e.getValue())){
                 CategoryConfig.backup(file,"setup");CategoryConfig.save(file,e.getValue());

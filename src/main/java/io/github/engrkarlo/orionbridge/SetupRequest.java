@@ -13,11 +13,13 @@ final class SetupRequest {
     private long expires;
     private int attempts;
     private Pending pending;
-    record Credentials(String guild,String server,String actor,String audit,String control,String network) {
+    record Credentials(String guild,String server,String actor,String audit,String control,String network,String feature) {
+        Credentials(String guild,String server,String actor,String audit,String control,String network){this(guild,server,actor,audit,control,network,"CREDENTIALS");}
         Credentials {
             if(!guild.matches("[0-9]{17,20}")||!server.matches("[a-f0-9]{16}")||!actor.matches("[0-9]{17,20}")
                 ||!audit.matches("[a-f0-9]{64}")||!control.matches("[a-f0-9]{64}")||!network.matches("[a-f0-9]{64}")
-                ||audit.equals(control)||audit.equals(network)||control.equals(network))
+                ||audit.equals(control)||audit.equals(network)||control.equals(network)
+                ||!java.util.Set.of("CREDENTIALS","CHAT","LINK","FORCE").contains(feature))
                 throw new IllegalArgumentException("Invalid setup credentials");
         }
         @Override public String toString(){return "Credentials[redacted]";}
@@ -31,9 +33,9 @@ final class SetupRequest {
         if(code==null||now>=expires||raw.length()>512)return null;
         if(++attempts>8){cancel();return null;}
         String[] parts=raw.split("\\n",-1);
-        if(parts.length!=7||parts[0].length()!=32||!MessageDigest.isEqual(code.getBytes(StandardCharsets.US_ASCII),parts[0].getBytes(StandardCharsets.US_ASCII)))return null;
+        if((parts.length!=7&&parts.length!=8)||parts[0].length()!=32||!MessageDigest.isEqual(code.getBytes(StandardCharsets.US_ASCII),parts[0].getBytes(StandardCharsets.US_ASCII)))return null;
         Credentials creds;
-        try{creds=new Credentials(parts[1],parts[2],parts[3],parts[4],parts[5],parts[6]);}catch(IllegalArgumentException e){return null;}
+        try{creds=new Credentials(parts[1],parts[2],parts[3],parts[4],parts[5],parts[6],parts.length==8?parts[7]:"CREDENTIALS");}catch(IllegalArgumentException e){return null;}
         if(!creds.distinct(token))return null;
         code=null;
         pending=new Pending(secret(8),creds,expires);

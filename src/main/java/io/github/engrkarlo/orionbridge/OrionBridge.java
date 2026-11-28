@@ -68,6 +68,9 @@ public final class OrionBridge extends JavaPlugin {
     YamlConfiguration theme(String name){return java.util.Objects.requireNonNull(themes.get(name));}
     private OrionCommands commands;
     private final SetupRequest setup=new SetupRequest();
+    private volatile String setupStatus="{}";
+    String setupStatus(){return setupStatus;}
+    private void publishSetupStatus(){setupStatus="{\"audit\":"+(audit!=null)+",\"control\":"+(control!=null)+",\"linking\":"+(verification!=null)+",\"forced\":"+(verification!=null&&verification.forced())+",\"chat\":"+(chat!=null)+",\"chatRequireLink\":"+(chat==null||chat.requiresLink())+",\"guard\":"+(guard!=null)+",\"roles\":"+(roles!=null)+",\"recovery\":"+(recovery!=null)+"}";}
     private OrionGuard retainedGuard;
     private record Settings(String mode, URI endpoint, String bind, int port, String token, int seconds, boolean hideVanished, boolean respectListing, boolean savedSkins) {}
     private static final class Session {
@@ -211,6 +214,7 @@ public final class OrionBridge extends JavaPlugin {
             &&(recovery!=null)==(pull&&cfg.getBoolean("recovery.enabled"));
     }
     private void refreshOnline(){
+        publishSetupStatus();
         if(moderation!=null)moderation.enforceOnlineBans();
         if(verification!=null)verification.refreshAfterReload();
     }
@@ -227,7 +231,7 @@ public final class OrionBridge extends JavaPlugin {
         closeMenus();
         if(dashboards!=null)dashboards.close();dashboards=nextDashboard;
         if(verification!=null)verification.replaceMenus(nextVerification);
-        activeConfig=config;
+        activeConfig=config;publishSetupStatus();
         if(verification!=null)verification.refreshAfterReload();
     }
     private void closeMenus(){
@@ -377,13 +381,21 @@ public final class OrionBridge extends JavaPlugin {
             var request=setup.peek(now);
             if(request==null){messages.send(sender,"setup.none");return;}
             var c=request.credentials();
-            messages.send(sender,"setup.pending","id",request.id(),"guild",c.guild(),"server",c.server(),"actor",c.actor());return;
+            messages.send(sender,"setup.pending","id",request.id(),"guild",c.guild(),"server",c.server(),"actor",c.actor(),"feature",c.feature());return;
         }
         if(args.length==3&&args[1].equalsIgnoreCase("approve")){
             var request=setup.consume(args[2],now);
             if(request==null){messages.send(sender,"setup.none");return;}
             try{
-                SetupConfig.provision(getDataFolder().toPath(),request.credentials());
+                var c=request.credentials();
+                if(!c.feature().equals("CREDENTIALS")){
+                    if(activeConfig==null||control==null||!CategoryConfig.same(activeConfig,CategoryConfig.load(this)))throw new java.io.IOException("Finish credential setup and reload local edits before adding features");
+                    if(!c.feature().equals("CHAT")&&!getServer().getOnlineMode()&&activeConfig.getString("verification.authme-realm","").isBlank()&&!installed("floodgate"))
+                        throw new java.io.IOException("Offline Java needs a trusted AuthMe realm before linking");
+                    if(c.feature().equals("FORCE")&&(verification==null||!verification.forced()&&getServer().getOnlinePlayers().stream().noneMatch(p->verification.authorized(p.getUniqueId()))))
+                        throw new java.io.IOException("Test optional linking with an online authorized player before enforcing it");
+                }
+                SetupConfig.provision(getDataFolder().toPath(),c);
                 var result=reloadAll();
                 messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
             }catch(Exception e){getLogger().warning("Setup could not apply: "+(e instanceof java.io.IOException?e.getMessage():"Invalid setup settings"));messages.send(sender,"setup.failed");}
@@ -400,7 +412,7 @@ public final class OrionBridge extends JavaPlugin {
         clearFallback();
         if(verification!=null){verification.close();verification=null;}
         if(roles!=null)roles.close();
-        return released;
+        publishSetupStatus();return released;
     }
     static boolean validEndpoint(URI uri) {
         String host = uri.getHost(), scheme = uri.getScheme();
@@ -538,7 +550,7 @@ public final class OrionBridge extends JavaPlugin {
     }
 
     private void stopServices(){
-        stopSession();
+        setupStatus="{}";stopSession();
         closeMenus();
         if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}finally{worldEditGuard=null;}
         if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}finally{luckPermsAudit=null;}

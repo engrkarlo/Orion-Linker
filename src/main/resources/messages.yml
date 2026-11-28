@@ -2,7 +2,7 @@
 # Edit these MiniMessage strings to change wording, colors and formatting.
 # Keep dynamic placeholders intact. User-provided values are inserted literally.
 # /ob reload applies changes. The security checks never depend on wording.
-theme-version: 3
+theme-version: 4
 commands:
   unknown: '<red>✗ Unknown OrionBridge command.</red> <gray>Use /ob help.</gray>'
   denied: '<red>✗ You cannot use this command right now.</red> <gray>Check your permissions, verification and enabled features.</gray>'
@@ -113,7 +113,7 @@ console:
 # Console-only setup; the one-time code is private to the server owner.
 setup:
   code: '<light_purple>OrionBridge setup</light_purple> <gray>·</gray> <white><code></white> <gray>(5 minutes). In OrionBot choose Setup → Automatic. Then run ob setup status.</gray>'
-  pending: '<light_purple>Pending setup</light_purple> <gray>Guild:</gray> <white><guild></white> <gray>Server:</gray> <white><server></white> <gray>Requested by:</gray> <white><actor></white> <yellow>Verify these IDs and run ob setup approve <id>.</yellow>'
+  pending: '<light_purple>Pending setup</light_purple> <gray>Guild:</gray> <white><guild></white> <gray>Server:</gray> <white><server></white> <gray>Requested by:</gray> <white><actor></white> <gray>Feature:</gray> <white><feature></white> <yellow>Verify these IDs and run ob setup approve <id>.</yellow>'
   none: '<yellow>No unexpired setup request. Run ob setup again if needed.</yellow>'
   cancelled: '<gray>Setup cancelled.</gray>'
   unavailable: '<red>Start the Pull connection before setup.</red>'

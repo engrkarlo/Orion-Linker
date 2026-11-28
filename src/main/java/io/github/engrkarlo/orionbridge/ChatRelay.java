@@ -65,6 +65,7 @@ final class ChatRelay implements Listener,AutoCloseable {
         }
         offer(identity,e.getPlayer().getName(),PlainTextComponentSerializer.plainText().serialize(e.message()),false,linked);
     }
+    boolean requiresLink(){return requireLink;}
     boolean staffEnabled(){return open&&staff&&outbound;}
     boolean staff(Player p,String message){
         if(!open||!staff||gate==null||plugin.guard()==null||!plugin.guard().staffChat(p.getUniqueId()))return false;
