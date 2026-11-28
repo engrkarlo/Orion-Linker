@@ -1,0 +1,11 @@
+{
+  "id": "orionbridge",
+  "name": "OrionBridge",
+  "version": "2.0.0-alpha.4",
+  "description": "Minecraft identity, audit and moderation via existing Pull pairing.",
+  "main": "extension.js",
+  "guildScoped": true,
+  "defaultGuildEnabled": false,
+  "defaultEnabled": true,
+  "interactionPrefix": "ob2:"
+}
