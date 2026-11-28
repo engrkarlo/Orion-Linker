@@ -18,7 +18,7 @@ final class LuckPermsRoles implements AutoCloseable {
     private final Set<String> groups,permissions;
     private final boolean offlineReconciliation,observedOffline;
     private final String authmeRealm;
-    private final java.util.concurrent.Semaphore rankSlots=new java.util.concurrent.Semaphore(4);
+    private final java.util.concurrent.Semaphore rankSlots=new java.util.concurrent.Semaphore(4),providerSlots=new java.util.concurrent.Semaphore(4);
     private final Map<UUID,Map<String,InheritanceNode>> owned=new HashMap<>();
     LuckPermsRoles(OrionBridge plugin,YamlConfiguration cfg){
         this.plugin=plugin;
@@ -109,8 +109,28 @@ final class LuckPermsRoles implements AutoCloseable {
             Class<?> type=Class.forName("org.geysermc.floodgate.api.FloodgateApi",true,flood.getClass().getClassLoader());
             Object api=type.getMethod("getInstance").invoke(null);
             Object value=type.getMethod("createJavaPlayerId",long.class).invoke(api,Long.parseUnsignedLong(id.substring(8)));
-            return value instanceof UUID uuid&&uuid.getMostSignificantBits()==0&&uuid.getLeastSignificantBits()==Long.parseUnsignedLong(id.substring(8))?uuid:null;
+            if(!(value instanceof UUID uuid)||uuid.getMostSignificantBits()!=0||uuid.getLeastSignificantBits()!=Long.parseUnsignedLong(id.substring(8)))return null;
+            return floodgateUnlinked(type,api,uuid,flood.getClass().getClassLoader())?uuid:null;
         }catch(ReflectiveOperationException|RuntimeException|LinkageError e){return null;}
+    }
+    private boolean floodgateUnlinked(Class<?> apiType,Object api,UUID uuid,ClassLoader loader){
+        // Only local linking providers can authoritatively answer offline. A
+        // global-only provider or a failed lookup is UNKNOWN, never a rank change.
+        try{
+            Object link=apiType.getMethod("getPlayerLink").invoke(api);
+            if(link==null)return false;
+            Class<?> type=Class.forName("org.geysermc.floodgate.api.link.PlayerLink",true,loader);
+            if(!Boolean.TRUE.equals(type.getMethod("isEnabled").invoke(link)))return true;
+            if(type.getMethod("getName").invoke(link)==null||!providerSlots.tryAcquire())return false;
+            boolean handedOff=false;
+            try{
+                Object result=type.getMethod("getLinkedPlayer",UUID.class).invoke(link,uuid);
+                if(!(result instanceof java.util.concurrent.CompletableFuture<?> future))return false;
+                var bounded=future.whenComplete((v,e)->providerSlots.release());handedOff=true;
+                return bounded.get(300,java.util.concurrent.TimeUnit.MILLISECONDS)==null;
+            }finally{if(!handedOff)providerSlots.release();}
+        }catch(InterruptedException e){Thread.currentThread().interrupt();return false;}
+        catch(ReflectiveOperationException|java.util.concurrent.ExecutionException|java.util.concurrent.TimeoutException|RuntimeException|LinkageError e){return false;}
     }
     private boolean safe(String name,Set<String> seen,int depth){
         if(depth>12||!seen.add(name)||!groups.contains(name)||Set.of("admin","administrator","owner","op","operator","staff","moderator","developer").contains(name.toLowerCase(Locale.ROOT)))return false;

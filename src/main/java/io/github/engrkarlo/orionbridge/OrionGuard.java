@@ -38,7 +38,8 @@ final class OrionGuard implements Listener,AutoCloseable {
     private final Counter joins=new Counter(),entities=new Counter();
     private final int ordinaryBlocks,joinLimit,entityLimit,containerLimit,containSeconds,lockSeconds,nonPlayerOperation,nonPlayerMinute;
     private static final UUID NON_PLAYER=new UUID(0L,0L);
-    private final boolean allowNonPlayerEdits,blockCommands,blockEdits;
+    private final boolean allowNonPlayerEdits,blockCommands,blockEdits,strictCommands;
+    private final Set<String> ordinaryCommands;
     private final org.bukkit.scheduler.BukkitTask cleanup;
     private volatile boolean open=true,worldEditReady=false;
     private static final class Counter {
@@ -92,6 +93,8 @@ final class OrionGuard implements Listener,AutoCloseable {
         nonPlayerOperation=clamp(config.getInt("guard.non-player-per-operation",10000),0,100000);
         nonPlayerMinute=clamp(config.getInt("guard.non-player-per-minute",20000),0,200000);
         blockCommands=config.getBoolean("guard.block-sensitive-commands",true);
+        strictCommands=config.getBoolean("guard.strict-command-allowlist",false);
+        ordinaryCommands=Set.copyOf(config.getStringList("guard.ordinary-commands"));if(ordinaryCommands.stream().anyMatch(c->!c.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")))throw new IllegalArgumentException("Invalid ordinary command allowlist");
         blockEdits=config.getBoolean("guard.enforce-worldedit",true);
         plugin.getServer().getPluginManager().registerEvents(this,plugin);
         cleanup=plugin.getServer().getScheduler().runTaskTimer(plugin,()->{
@@ -201,26 +204,28 @@ final class OrionGuard implements Listener,AutoCloseable {
         String name=canonical.substring(canonical.lastIndexOf(':')+1).replaceFirst("^/+","");
         boolean edit=owner.equals("worldedit")||owner.equals("fastasyncworldedit")||raw.startsWith("/")||raw.startsWith("worldedit:")||raw.startsWith("fawe:");
         boolean sensitive=edit||SENSITIVE.contains(name)||SENSITIVE.contains(raw.substring(raw.lastIndexOf(':')+1));
+        if(strictCommands&&!sensitive&&!ordinaryCommands.contains(owner+":"+name))sensitive=true;
         if(edit&&blockEdits&&!worldEditReady){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Guard edit hook unavailable; refusing an edit command until restart");player.sendMessage(Component.text("OrionGuard: edit protection unavailable. Contact staff."));return;}
         // These direct entity operations may bypass the guarded extent. Deny
         // them while WE protection is on instead of claiming complete coverage.
         if(edit&&blockEdits&&Set.of("butcher","remove","killall").contains(name)){e.setCancelled(true);alert(player,"WORLDEDIT_BLOCKED","Direct entity command denied; no guarded extent guarantee");return;}
-        if((!blockCommands&&(!edit||!blockEdits))||!sensitive)return;
+        if((!strictCommands&&!blockCommands&&(!edit||!blockEdits))||!sensitive)return;
         Profile profile=edit?editProfile(player.getUniqueId()):profile(player.getUniqueId());
         boolean allowed=resolved!=null&&(edit?profile.editLimit()>0&&profile.scope().permitsCommand(owner,name):profile.commands().contains(owner+":"+name));
         if(!allowed){e.setCancelled(true);alert(player,"GUARD_COMMAND_BLOCKED","Blocked sensitive command category "+name+"; resolved owner="+owner);player.sendMessage(Component.text("OrionGuard: this operation requires an approved staff profile."));}
         else alert(player,"TRUSTED_OPERATION","Authorized command category "+name+"; owner="+owner);
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void breakBlock(BlockBreakEvent e){if(!block(e.getPlayer()))e.setCancelled(true);}
-    @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void placeBlock(BlockPlaceEvent e){if(!block(e.getPlayer()))e.setCancelled(true);}
-    private boolean block(Player player){
+    @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void placeBlock(BlockPlaceEvent e){int count=e instanceof BlockMultiPlaceEvent multi?multi.getReplacedBlockStates().size():1;if(!block(e.getPlayer(),Math.max(1,count)))e.setCancelled(true);}
+    private boolean block(Player player){return block(player,1);}
+    private boolean block(Player player,int amount){
         if(denied(player,GuardContainment.Type.BUILD_RESTRICTION))return false;
         UUID id=player.getUniqueId();long now=System.currentTimeMillis();
         if(!blocks.containsKey(id)&&blocks.size()>=10000)return false;
-        int count=blocks.computeIfAbsent(id,k->new Counter()).add(now,1,60);
+        int count=blocks.computeIfAbsent(id,k->new Counter()).add(now,amount,60);
         int limit=Math.max(ordinaryBlocks,profile(id).blocks());
         if(count<=limit)return true;
-        if(count==limit+1)alert(player,"GUARD_BLOCK_LIMIT","Block-operation budget "+limit+" exceeded; further block attempts denied in this window");
+        if(count-amount<=limit)alert(player,"GUARD_BLOCK_LIMIT","Block-operation budget "+limit+" exceeded; further block attempts denied in this window");
         return false;
     }
     @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true) public void interact(PlayerInteractEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
@@ -267,9 +272,14 @@ final class OrionGuard implements Listener,AutoCloseable {
         return initial.equals(editAuth(player))&&operationLimit(player,world)>0;
     }
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void teleport(PlayerTeleportEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
-    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void bucket(PlayerBucketEmptyEvent e){if(denied(e.getPlayer(),GuardContainment.Type.BUILD_RESTRICTION))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void bucket(PlayerBucketEmptyEvent e){if(!block(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void bucketFill(PlayerBucketFillEvent e){if(denied(e.getPlayer(),GuardContainment.Type.BUILD_RESTRICTION))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void openInventory(InventoryOpenEvent e){if(e.getPlayer() instanceof Player p&&blocked(p)&&!VerificationMenus.owns(e.getInventory())&&!DashboardMenus.owns(e.getInventory()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void armorStand(PlayerArmorStandManipulateEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void consume(PlayerItemConsumeEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void swap(PlayerSwapHandItemsEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void fish(PlayerFishEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
+    @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void vehicle(org.bukkit.event.vehicle.VehicleEnterEvent e){if(e.getEntered() instanceof Player p&&blocked(p))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void entity(PlayerInteractEntityEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void drop(PlayerDropItemEvent e){if(blocked(e.getPlayer()))e.setCancelled(true);}
     @EventHandler(priority=EventPriority.HIGHEST,ignoreCancelled=true) public void pickup(EntityPickupItemEvent e){if(e.getEntity() instanceof Player p&&blocked(p))e.setCancelled(true);}
