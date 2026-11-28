@@ -39,6 +39,8 @@ public final class OrionBridge extends JavaPlugin {
     private AuthenticatedIdentity identities;
     private OrionGuard guard;
     private LuckPermsRoles roles;
+    private ChatRelay chat;
+    ChatRelay chat(){return chat;}
     LuckPermsRoles roles(){return roles;}
     private AutoCloseable worldEditGuard,luckPermsAudit;
     OrionGuard guard(){return guard;}
@@ -96,6 +98,7 @@ public final class OrionBridge extends JavaPlugin {
                 if(getServer().getPluginManager().isPluginEnabled("WorldEdit")||getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit"))try{worldEditGuard=new WorldEditGuard(guard);}catch(LinkageError|RuntimeException e){getLogger().severe("WorldEdit/FAWE guard hook unavailable; command guard remains active.");}
                 if(getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{luckPermsAudit=new LuckPermsAudit(this,guard);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms audit hook unavailable.");}
             }
+            if(settings.mode().equals("pull")&&cfg.getBoolean("chat.enabled",false)&&verification!=null)chat=new ChatRelay(this,cfg,verification,moderation);
             apply(settings);
         }
         catch(Exception e){getLogger().warning("Bridge inactive: "+safeError(e)+". Correct config.yml and run /ob reload.");}
@@ -200,6 +203,10 @@ public final class OrionBridge extends JavaPlugin {
         }
         if(args.length==2&&args[0].equalsIgnoreCase("lockdown")&&sender instanceof org.bukkit.command.ConsoleCommandSender&&guard!=null){
             try{guard.lockdown(args[1].equalsIgnoreCase("off")?0:System.currentTimeMillis()+Math.multiplyExact(Long.parseLong(args[1]),60000L),"console");sender.sendMessage("Lockdown updated.");}catch(RuntimeException e){sender.sendMessage("Usage: ob lockdown <1-60 minutes|off>");}return true;
+        }
+        if(sender instanceof Player player&&args.length>=2&&args[0].equalsIgnoreCase("staffchat")){
+            boolean sent=chat!=null&&chat.staff(player,String.join(" ",java.util.Arrays.copyOfRange(args,1,args.length)));
+            if(!sent)sender.sendMessage("Staff chat unavailable or not authorized.");return true;
         }
         if(sender instanceof Player player&&verification!=null&&verification.playerCommand(player,args))return true;
         if(args.length!=1||!args[0].equalsIgnoreCase("reload")){sender.sendMessage("Usage: /ob account | /ob link | /ob reload");return true;}
@@ -349,6 +356,7 @@ public final class OrionBridge extends JavaPlugin {
         if(audit!=null){audit.close();audit=null;}
         if(worldEditGuard!=null)try{worldEditGuard.close();}catch(Exception ignored){}
         if(luckPermsAudit!=null)try{luckPermsAudit.close();}catch(Exception ignored){}
+        if(chat!=null){chat.close();chat=null;}
         if(guard!=null){guard.close();guard=null;}
         if(roles!=null){roles.close();roles=null;}
         if(verification!=null){verification.close();verification=null;}

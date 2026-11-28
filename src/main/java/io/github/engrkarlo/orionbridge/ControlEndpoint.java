@@ -15,14 +15,30 @@ final class ControlEndpoint {
         boolean batch=path.equals("/v2/verification/batch");
         boolean linking=batch||path.equals("/v2/verification");
         boolean policy=path.equals("/v2/policy");
-        if(ex.getRequestURI().getRawQuery()!=null||!(linking||policy||path.equals("/v2/actions"))||linking&&verification==null||!linking&&!policy&&moderation==null||policy&&plugin.guard()==null){ex.sendResponseHeaders(404,-1);return;}
-        if(!method.equals("POST")&&!((linking&&!batch||policy)&&method.equals("GET"))){ex.sendResponseHeaders(405,-1);return;}
+        boolean chat=path.equals("/v2/chat");
+        if(ex.getRequestURI().getRawQuery()!=null||!(linking||policy||chat||path.equals("/v2/actions"))||linking&&verification==null||!linking&&!policy&&!chat&&moderation==null||policy&&plugin.guard()==null||chat&&plugin.chat()==null){ex.sendResponseHeaders(404,-1);return;}
+        if(!method.equals("POST")&&!((linking&&!batch||policy||chat)&&method.equals("GET"))){ex.sendResponseHeaders(405,-1);return;}
         var h=ex.getRequestHeaders();String g=h.getFirst("X-Orion-Guild"),s=h.getFirst("X-Orion-Server");
         if(!auth.scope(g,s)){ex.sendResponseHeaders(401,-1);return;}
         int limit=batch?16384:4096;
         byte[] body=ex.getRequestBody().readNBytes(limit+1);
         if(body.length>limit){ex.sendResponseHeaders(413,-1);return;}
         if(!auth.verify(method,path,g,s,h.getFirst("X-Orion-Time"),h.getFirst("X-Orion-Nonce"),h.getFirst("X-Orion-Signature"),body,System.currentTimeMillis())){ex.sendResponseHeaders(401,-1);return;}
+        if(chat){
+            ChatRelay relay=plugin.chat();
+            if(method.equals("GET")){if(body.length!=0){ex.sendResponseHeaders(400,-1);return;}respond(ex,relay.snapshot());return;}
+            String raw=new String(body,StandardCharsets.UTF_8);
+            try{
+                if(raw.startsWith("ACK\n")){
+                    var ids=new java.util.HashSet<java.util.UUID>();String[] fields=raw.substring(4).split("\n");
+                    if(fields.length>50)throw new IllegalArgumentException();
+                    for(String id:fields)ids.add(java.util.UUID.fromString(id));
+                    respond(ex,"{\"acknowledged\":"+relay.acknowledge(ids)+"}");return;
+                }
+                respond(ex,"{\"result\":"+OrionBridge.quote(relay.receive(raw))+"}");
+            }catch(IllegalArgumentException e){ex.sendResponseHeaders(400,-1);}
+            return;
+        }
         if(policy){
             OrionGuard guard=plugin.guard();
             if(method.equals("GET")){

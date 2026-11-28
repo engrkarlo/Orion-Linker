@@ -28,11 +28,13 @@ final class VerificationGate implements Listener,AutoCloseable {
     private final Map<UUID,Long> lastShown=new HashMap<>();
     private final Map<UUID,Boolean> wasVerified=new HashMap<>();
     private volatile boolean active=true;
-    private final java.util.concurrent.ConcurrentMap<UUID,String> trusted=new ConcurrentHashMap<>();
+    private record Trust(String profile,long until){}
+    private final java.util.concurrent.ConcurrentMap<UUID,Trust> trusted=new ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentMap<UUID,String> primaryGroups=new ConcurrentHashMap<>();
     String profile(UUID player){
         var s=state.get(player);
-        return active&&s!=null&&s.verified(System.currentTimeMillis())?trusted.get(player):null;
+        var t=trusted.get(player);long now=System.currentTimeMillis();
+        return active&&s!=null&&s.verified(now)&&t!=null&&t.until()>now?t.profile():null;
     }
     String linkedIdentity(UUID player){
         var s=state.get(player);
@@ -129,14 +131,16 @@ final class VerificationGate implements Listener,AutoCloseable {
             case "OFFER"->{if(fields.length!=7)return "INVALID";result=state.offer(player,session,identity,UUID.fromString(fields[4]),fields[5],Long.parseLong(fields[6]),now);}
             case "CLAIM"->{if(fields.length!=7)return "INVALID";result=state.claim(player,session,identity,UUID.fromString(fields[4]),fields[5],new String(Base64.getUrlDecoder().decode(fields[6]),StandardCharsets.UTF_8),now);}
             case "LEASE"->{
-                if(fields.length<7||fields.length>9)return "INVALID";
+                if(fields.length<7||fields.length>10)return "INVALID";
                 String profile=fields.length>=8?fields[7]:"";
-                String groups=fields.length==9?fields[8]:"";
+                String groups=fields.length>=9?fields[8]:"";
+                long trustUntil=fields.length==10?Long.parseLong(fields[9]):Long.parseLong(fields[6]);
+                trustUntil=Math.min(trustUntil,Long.parseLong(fields[6]));
                 if(!groups.isEmpty()&&!groups.matches("[a-z0-9_-]{1,40}(,[a-z0-9_-]{1,40}){0,9}"))return "INVALID";
                 if(!profile.isEmpty()&&!profile.matches("[a-z0-9_-]{1,40}"))return "INVALID";
                 result=state.lease(player,session,identity,fields[4],Long.parseLong(fields[5]),Long.parseLong(fields[6]),now,lease);
                 if(result.equals("APPLIED")){
-                    if(profile.isEmpty())trusted.remove(player);else trusted.put(player,profile);
+                    if(profile.isEmpty())trusted.remove(player);else trusted.put(player,new Trust(profile,trustUntil));
                     if(plugin.roles()!=null)try{
                         Set<String> desired=groups.isEmpty()?Set.of():new HashSet<>(Arrays.asList(groups.split(",")));
                         plugin.roles().sync(p,desired,Long.parseLong(fields[6]));
