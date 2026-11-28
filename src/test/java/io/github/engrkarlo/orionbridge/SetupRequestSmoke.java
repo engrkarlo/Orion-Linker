@@ -21,7 +21,7 @@ final class SetupRequestSmoke {
         try{
             long t=System.currentTimeMillis();var durable=new SetupRequest(file);String secret=durable.open(t,token);
             durable=new SetupRequest(file);var p2=durable.stage(secret+suffix+"\nCREDENTIALS\n"+claim,token,t,true);check(p2!=null);
-            durable=new SetupRequest(file);check(durable.pending(p2.id(),a,t)==null);check(durable.pending(p2.id(),token,t)!=null);
+            durable=new SetupRequest(file);check(durable.stage(secret+suffix+"\nCREDENTIALS\n"+claim,token,t,true).id().equals(p2.id()));check(durable.stage(secret+suffix+"\nCREDENTIALS\n"+a,token,t,true)==null);check(durable.pending(p2.id(),a,t)==null);check(durable.pending(p2.id(),token,t)!=null);
             durable.approve(p2,token,t);durable=new SetupRequest(file);check(durable.claim(p2.id(),claim,token,t));check(!durable.claim(p2.id(),claim,a,t));
             durable.cancel();check(!new SetupRequest(file).claim(p2.id(),claim,token,t));
         }finally{java.nio.file.Files.deleteIfExists(file);java.nio.file.Files.deleteIfExists(folder);}

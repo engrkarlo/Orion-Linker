@@ -10,7 +10,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 
-/** One root connection file plus independent, independent feature files.
+/** One root connection file plus independent feature files.
  * The root version is the migration commit marker, written last. */
 final class CategoryConfig {
     static final int VERSION=15;
@@ -41,8 +41,10 @@ final class CategoryConfig {
         for(String name:CATEGORIES)categories.put(name,resource(plugin,"config/"+name+".yml"));
         boolean changed=migrate(directory,defaults,categories);
         if(changed)plugin.getLogger().info("Configuration v15: feature files are in config/. Existing values retained; previous root backed up.");
+        PairingCredentials.migrate(directory);
         SetupConfig.recover(directory);
         var combined=load(directory,defaults,categories);
+        PairingCredentials.overlay(directory,combined);
         if(Files.isSymbolicLink(directory.resolve("menus")))throw new LayoutException("Invalid menus directory");
         for(String name:MENUS)prepareMenu(directory,name,resource(plugin,"menus/"+name+".yml"));
         prepareTheme(directory.resolve("messages.yml"),"messages",resource(plugin,"messages.yml"));

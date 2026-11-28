@@ -9,31 +9,26 @@ import org.bukkit.configuration.file.YamlConfiguration;
 final class SetupConfig {
     private SetupConfig(){}
     private static Path journal(Path dir){return dir.resolve("setup-pending.yml");}
-    private static void match(YamlConfiguration config,String key,String value)throws IOException{
-        if(config.contains(key)&&!config.isString(key))throw new IOException("Invalid credential field "+key);
-        String old=config.getString(key,"");
-        if(!old.isEmpty()&&!old.equals(value))throw new IOException("Existing pairing differs; automatic setup will not replace it");
-    }
-    private record Plan(YamlConfiguration audit,YamlConfiguration control,YamlConfiguration correlation){}
+    private record Plan(YamlConfiguration audit,YamlConfiguration control,YamlConfiguration correlation,YamlConfiguration credentials){}
     private static Plan plan(Path dir,SetupRequest.Credentials c)throws Exception{
         var a=CategoryConfig.read(dir.resolve("config/audit.yml"));
         var b=CategoryConfig.read(dir.resolve("config/control.yml"));
         var n=CategoryConfig.read(dir.resolve("config/correlation.yml"));
-        match(a,"audit.guild-id",c.guild());match(a,"audit.server-id",c.server());match(a,"audit.signing-key",c.audit());
-        match(b,"control.signing-key",c.control());match(n,"correlation.guild-key",c.network());
-        return new Plan(a,b,n);
+        var privateKeys=PairingCredentials.read(dir);PairingCredentials.verify(privateKeys,c);
+        return new Plan(a,b,n,privateKeys);
     }
     static void provision(Path dir,SetupRequest.Credentials c)throws Exception{provision(dir,c,false);}
     static void provision(Path dir,SetupRequest.Credentials c,boolean autoRealm)throws Exception{
+        PairingCredentials.migrate(dir);
         if(Files.exists(journal(dir),LinkOption.NOFOLLOW_LINKS))throw new IOException("An approved setup is already pending; reload to recover it");
         var root=CategoryConfig.readRoot(dir);
-        if(!"pull".equals(root.getString("mode"))||!c.distinct(root.getString("token","")))throw new IOException("Setup requires Pull and distinct credentials");
+        if(!"pull".equals(root.getString("mode"))||!c.distinct(PairingCredentials.read(dir).getString("token","")))throw new IOException("Setup requires Pull and distinct credentials");
         var p=plan(dir,c);
         var j=new YamlConfiguration();
         j.set("auto-realm",autoRealm);j.set("feature",c.feature());j.set("guild",c.guild());j.set("server",c.server());j.set("actor",c.actor());j.set("audit",c.audit());j.set("control",c.control());j.set("network",c.network());
         // Only new services are automatically activated. Existing settings remain exactly as chosen.
         j.set("enable-audit",c.feature().equals("AUDIT"));
-        j.set("enable-control",p.control().getString("control.signing-key","").isEmpty());
+        j.set("enable-control",p.credentials().getString("control.signing-key","").isEmpty());
         featurePlan(dir,c.feature(),c.server(),autoRealm); // Validate all affected files before committing the intent.
         CategoryConfig.save(journal(dir),j);
         recover(dir);
@@ -79,15 +74,14 @@ final class SetupConfig {
         var j=CategoryConfig.read(journal(dir));
         var c=new SetupRequest.Credentials(j.getString("guild",""),j.getString("server",""),j.getString("actor",""),j.getString("audit",""),j.getString("control",""),j.getString("network",""),j.getString("feature","CREDENTIALS"));
         var root=CategoryConfig.readRoot(dir);
-        if(!"pull".equals(root.getString("mode"))||!c.distinct(root.getString("token","")))throw new IOException("Pending setup no longer matches connection");
+        if(!"pull".equals(root.getString("mode"))||!c.distinct(PairingCredentials.read(dir).getString("token","")))throw new IOException("Pending setup no longer matches connection");
         if(!j.isBoolean("enable-audit")||!j.isBoolean("enable-control"))throw new IOException("Invalid setup journal");
         var p=plan(dir,c);
         var feature=featurePlan(dir,c.feature(),c.server(),j.getBoolean("auto-realm",false));
-        p.audit().set("audit.guild-id",c.guild());p.audit().set("audit.server-id",c.server());p.audit().set("audit.signing-key",c.audit());
-        p.control().set("control.signing-key",c.control());p.correlation().set("correlation.guild-key",c.network());
+        PairingCredentials.provision(dir,c);
         if(j.getBoolean("enable-audit"))p.audit().set("audit.enabled",true);
         if(j.getBoolean("enable-control"))p.control().set("control.enabled",true);
-        // Scope and keys first, feature activation last. Never enable correlation/Guard or rollback.
+        // Scope and keys first, feature activation last. Never activate rollback or correlation implicitly.
         var files=new java.util.LinkedHashMap<String,YamlConfiguration>();files.put("audit",p.audit());files.put("control",p.control());files.put("correlation",p.correlation());files.putAll(feature);
         for(var e:files.entrySet()){
             Path file=dir.resolve("config/"+e.getKey()+".yml");

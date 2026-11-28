@@ -8,5 +8,5 @@
 control:
   enabled: false
   # Paste the control signing key from Setup credentials in OrionBot.
-  # Never reuse the telemetry token or audit signing key.
+  # Legacy import only; the setup wizard stores the key privately.
   signing-key: ''

@@ -85,13 +85,15 @@ final class SetupRequest {
     synchronized Pending stage(String raw,String token,long now){return stage(raw,token,now,false);}
     synchronized Pending stage(String raw,String token,long now,boolean bootstrap){
         if(codeHash==null||now>=expires||raw.length()>512||tokenHash!=null&&!tokenHash.equals(hash(token)))return null;
+        if(pending!=null&&!bootstrap)return null;
         if(!bootstrap&&++attempts>8){cancelPending();return null;}
         String[] parts=raw.split("\\n",-1);
         if((bootstrap?parts.length!=9:parts.length!=7&&parts.length!=8)||parts[0].length()!=32||!MessageDigest.isEqual(codeHash.getBytes(StandardCharsets.US_ASCII),hash(parts[0]).getBytes(StandardCharsets.US_ASCII)))return null;
         Credentials creds;
         try{creds=new Credentials(parts[1],parts[2],parts[3],parts[4],parts[5],parts[6],parts.length>=8?parts[7]:"CREDENTIALS");}catch(IllegalArgumentException e){return null;}
         if(!creds.distinct(token)||bootstrap&&(!creds.feature().equals("CREDENTIALS")||!parts[8].matches("[a-f0-9]{64}")||parts[8].equals(token)))return null;
-        codeHash=null;tokenHash=hash(token);
+        if(pending!=null){return bootstrap&&pending.claimHash()!=null&&pending.credentials().equals(creds)&&pending.claimHash().equals(hash(parts[8]))?pending:null;}
+        if(!bootstrap)codeHash=null;tokenHash=hash(token);
         pending=new Pending(secret(8),creds,expires,bootstrap?hash(parts[8]):null);
         persist();return pending;
     }
@@ -107,7 +109,7 @@ final class SetupRequest {
         if(pending!=null&&pending.id().equals(value.id()))clearPending();persist();
     }
     synchronized boolean claim(String id,String secret,String token,long now){
-        if(receipt==null||now>=receipt.expires()){receipt=null;return false;}
+        if(receipt==null||now>=receipt.expires()){if(receipt!=null){receipt=null;persist();}return false;}
         return receipt.id().equals(id)&&receipt.tokenHash().equals(hash(token))&&secret!=null&&secret.matches("[a-f0-9]{64}")&&MessageDigest.isEqual(receipt.claimHash().getBytes(StandardCharsets.US_ASCII),hash(secret).getBytes(StandardCharsets.US_ASCII));
     }
 }

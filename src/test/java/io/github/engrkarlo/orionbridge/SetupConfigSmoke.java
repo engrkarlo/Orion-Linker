@@ -20,7 +20,13 @@ public final class SetupConfigSmoke {
             SetupConfig.provision(dir,credentials.apply("LINK"));check(bool(v,"verification.force"));
             SetupConfig.provision(dir,credentials.apply("CHAT"));check(bool(v,"verification.force"));
             try{SetupConfig.provision(dir,new SetupRequest.Credentials(g,s,actor,"d".repeat(64),b,c,"CREDENTIALS"));throw new AssertionError("replaced credentials");}catch(java.io.IOException expected){}
-            check(CategoryConfig.read(dir.resolve("config/audit.yml")).getString("audit.signing-key").equals(a));
+            check(PairingCredentials.read(dir).getString("audit.signing-key").equals(a));
+            check(CategoryConfig.read(dir.resolve("config/audit.yml")).getString("audit.signing-key","").isEmpty());
+            check(CategoryConfig.readRoot(dir).getString("token","").isEmpty());
+            check(PairingCredentials.read(dir).getString("token").equals("f".repeat(64)));
+            put(dir.resolve("config/audit.yml"),"audit.signing-key","d".repeat(64));
+            try{PairingCredentials.migrate(dir);throw new AssertionError("overwrote private credential");}catch(java.io.IOException expected){}
+            put(dir.resolve("config/audit.yml"),"audit.signing-key","");
             check(!Files.exists(dir.resolve("setup-pending.yml")));
             SetupConfig.recover(dir);
         }finally{try(var files=Files.walk(dir)){for(Path p:files.sorted(java.util.Comparator.reverseOrder()).toList())Files.deleteIfExists(p);}}

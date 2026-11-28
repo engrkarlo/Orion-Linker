@@ -349,8 +349,8 @@ public final class OrionBridge extends JavaPlugin {
         if(mode.equals("pull")&&token.isEmpty()){
             if(!generateToken)throw new IllegalArgumentException("Restore your existing pairing token before reload");
             byte[] secret=new byte[32];new SecureRandom().nextBytes(secret);
-            token=HexFormat.of().formatHex(secret);cfg.set("token",token);var root=CategoryConfig.readRoot(getDataFolder().toPath());root.set("token",token);CategoryConfig.save(getDataFolder().toPath().resolve("config.yml"),root);
-            getLogger().info("Generated a pull token in config.yml. Keep it private.");
+            token=HexFormat.of().formatHex(secret);PairingCredentials.putToken(getDataFolder().toPath(),token);cfg.set("token",token);cfg.set("credentials-managed",true);
+            getLogger().info("Generated a private pairing credential. Use ob setup to connect OrionBot.");
         }
         if(!token.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("Token must be 64 lowercase hexadecimal characters");
         String transport=cfg.getString("transport","AUTO").toUpperCase(java.util.Locale.ROOT);
