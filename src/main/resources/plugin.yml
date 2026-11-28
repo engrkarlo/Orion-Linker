@@ -1,0 +1,19 @@
+name: OrionBridge
+version: '1.1.0'
+main: io.github.engrkarlo.orionbridge.OrionBridge
+api-version: '26.3'
+description: Read-only authenticated telemetry and live player textures for OrionBot.
+author: Karlow
+softdepend: [SkinsRestorer, floodgate]
+permissions:
+  orionbridge.hide:
+    description: Exclude this player from the bridge roster and counts.
+    default: false
+  orionbridge.reload:
+    description: Reload OrionBridge configuration and connection.
+    default: op
+commands:
+  ob:
+    description: Manage OrionBridge.
+    usage: /ob reload
+    permission: orionbridge.reload
