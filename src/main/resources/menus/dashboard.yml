@@ -1,5 +1,11 @@
-theme-version: 1
+# OrionBridge | Post-verification player and staff dashboards
+# Controls /ob account, /ob roles, punishments, reports, appeals and /ob admin.
+# Shared across Java dialogs, chest menus and Bedrock forms. Not the linking screen.
+# Use MiniMessage colors, e.g. <light_purple>Text</light_purple>. Keep placeholders.
+# Existing custom values are retained. Restart Paper to apply changes.
+theme-version: 2
 title-prefix: '<light_purple>OrionBridge</light_purple> <gray>·</gray> '
+# Button captions and common display labels.
 labels:
   punishments: '<white>Punishments</white>'
   report: '<white>Report</white>'
@@ -37,6 +43,7 @@ headings:
   punishment-request: '<white>Punishment request</white>'
   report-an-issue: '<white>Report an issue</white>'
   inspect-account: '<white>Inspect account</white>'
+# Java inventory item material names. Invalid names use built-in icons.
 materials:
   report: PAPER
   appeal: WRITABLE_BOOK
@@ -46,9 +53,11 @@ materials:
 
 # Optional layout preferences. Invalid, duplicate and occupied slots are skipped.
 layout:
+  # Java dialog button columns and width; input-width controls text prompts.
   dialog-columns: 2
   dialog-button-width: 150
   input-width: 240
+  # Java chest rows (3–6); slots start at 0. Empty button-slots = automatic placement.
   inventory-rows: 3
   information-slot: 0
   button-slots: []
@@ -81,6 +90,7 @@ bodies:
     Use Discord for historical identity, evidence and policy editing.
   punishment-request: 'Select a type; an independent Discord administrator must approve.'
   diagnostics: '<details>'
+# Prompt text for player report and staff request input screens.
 inputs:
   report-an-issue: Describe the issue or case ID
   inspect-account: Canonical Minecraft identity
@@ -91,6 +101,7 @@ inputs:
   request-build-restriction: Duration and reason (e.g. 1h griefing)
   request-worldedit-restriction: Duration and reason (e.g. 1h griefing)
   request-temp-ban: Duration and reason (e.g. 1h griefing)
+# Common feedback messages; editing text does not change enforcement.
 messages:
   verify-first: 'Verify first using /ob link.'
   report-unavailable: 'Reporting unavailable; contact staff in Discord.'

@@ -1,5 +1,11 @@
-theme-version: 1
+# OrionBridge | Bedrock verification forms
+# Controls account linking before gameplay, not the post-verification dashboard.
+# Automatically selected for Bedrock through Floodgate. Image paths are optional; material is not used.
+# Use MiniMessage colors. Keep <code>, <discord>, <discord_id> and <invite> placeholders where needed.
+# Never expose the private code in public chat. Restart Paper to apply changes.
+theme-version: 2
 title: '<light_purple>OrionBridge</light_purple> | <white>Account verification</white>'
+# Each screen corresponds to a different step of the verification process.
 screens:
   welcome: '<white>Welcome! Link your Discord account before playing.</white><newline><gray>Join our Discord: <invite></gray>'
   authenticate: '<white>Authenticate your Minecraft account first.</white><newline><gray>Then refresh to start verification.</gray>'
@@ -8,6 +14,7 @@ screens:
   confirm: '<white>Confirm that this Discord account is yours:</white><newline><light_purple><discord></light_purple><newline><gray>ID: <discord_id></gray>'
   pending: '<white>Confirmation received. Waiting for OrionBot to finish linking.</white>'
   verified: '<green>Account verified.</green><newline><white>Discord ID: <discord_id></white>'
+# Button names only change appearance, not the action they perform.
 buttons:
   link:
     name: '<white>Link Discord Account</white>'

@@ -82,10 +82,9 @@ public final class OrionBridge extends JavaPlugin {
         long started=System.nanoTime();
         YamlConfiguration startupConfig=null;
         boolean failed=false;
-        saveDefaultConfig();
         try {
+            var cfg=CategoryConfig.load(this);startupConfig=cfg;
             Settings settings=readSettings();
-            var cfg=new YamlConfiguration();cfg.load(new File(getDataFolder(),"config.yml"));startupConfig=cfg;
             identities=new AuthenticatedIdentity(this,cfg.getString("verification.authme-realm",""));
             if(settings.mode().equals("pull")&&cfg.getBoolean("audit.enabled",false)){
                 try{audit=new SecurityAudit(this,cfg);}catch(Exception e){getLogger().warning("Audit feed inactive: check audit scope, signing key and storage.");}
@@ -93,9 +92,7 @@ public final class OrionBridge extends JavaPlugin {
             if(settings.mode().equals("pull")&&cfg.getBoolean("roles.enabled",false)&&getServer().getPluginManager().isPluginEnabled("LuckPerms"))try{roles=new LuckPermsRoles(this,cfg);}catch(LinkageError|RuntimeException e){getLogger().warning("LuckPerms role sync unavailable.");}
             if(cfg.getBoolean("verification.enabled",false)&&cfg.getBoolean("verification.setup-complete",false)){
                 try{verification=new VerificationGate(this,cfg);}
-                catch(Exception e){getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");verificationFallback=new org.bukkit.event.Listener(){
-                    @org.bukkit.event.EventHandler public void login(org.bukkit.event.player.PlayerLoginEvent event){event.disallow(org.bukkit.event.player.PlayerLoginEvent.Result.KICK_OTHER,"OrionBridge verification unavailable. Contact staff.");}
-                };getServer().getPluginManager().registerEvents(verificationFallback,this);}
+                catch(Exception e){getLogger().severe("Verification setup could not initialize. Restricting joins until configuration is corrected.");installVerificationFallback();}
             }
             if(settings.mode().equals("pull")&&cfg.getBoolean("control.enabled",false)){
                 try{
@@ -116,10 +113,18 @@ public final class OrionBridge extends JavaPlugin {
             dashboards=new DashboardMenus(this,cfg);
             apply(settings);
         }
-        catch(Exception e){failed=true;getLogger().warning("Bridge inactive: "+safeError(e)+". Correct config.yml and restart Paper.");}
+        catch(Exception e){failed=true;getLogger().warning("Bridge startup incomplete: "+safeError(e)+". Check config.yml and config/ files; restart Paper.");if(verification==null&&(startupConfig==null||verifyRequested(startupConfig)))installVerificationFallback();}
         startupBanner(startupConfig,failed,started);
     }
 
+    private void installVerificationFallback(){
+        if(verificationFallback!=null)return;
+        getLogger().severe("Configuration/verification unavailable; joins restricted. Restore configuration or use console ob verification-off temporarily.");
+        verificationFallback=new org.bukkit.event.Listener(){
+            @org.bukkit.event.EventHandler public void login(org.bukkit.event.player.PlayerLoginEvent event){event.disallow(org.bukkit.event.player.PlayerLoginEvent.Result.KICK_OTHER,"OrionBridge configuration or verification unavailable. Contact staff.");}
+        };
+        getServer().getPluginManager().registerEvents(verificationFallback,this);
+    }
     private static final String CONSOLE_RULE="  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
     private void line(String text){getServer().getConsoleSender().sendMessage(text+ChatColor.RESET);}
     private void section(String label){line(ChatColor.DARK_GRAY+"  ── "+ChatColor.LIGHT_PURPLE+ChatColor.BOLD+label+ChatColor.RESET+ChatColor.DARK_GRAY+" ──");}
@@ -145,7 +150,7 @@ public final class OrionBridge extends JavaPlugin {
         line(ChatColor.DARK_GRAY+"  Created by "+ChatColor.LIGHT_PURPLE+"Karlow");
         section("01 / Runtime & configuration");
         field("Platform","Paper "+StartupSummary.clean(getServer().getMinecraftVersion())+" · Java "+Runtime.version().feature(),ChatColor.WHITE);
-        field("Configuration",cfg==null?"Unavailable":"Schema v"+cfg.getInt("config-version"),cfg==null?ChatColor.RED:ChatColor.AQUA);
+        field("Configuration",cfg==null?"Unavailable":"Schema v"+cfg.getInt("config-version")+" · 8 feature files",cfg==null?ChatColor.RED:ChatColor.AQUA);
         field("Authentication",getServer().getOnlineMode()?"Online-mode Java":"Offline-mode / trusted authentication required",getServer().getOnlineMode()?ChatColor.GREEN:ChatColor.YELLOW);
         field("Credentials","Values hidden · never printed",ChatColor.DARK_GRAY);
         section("02 / Transport & privacy");
@@ -200,14 +205,7 @@ public final class OrionBridge extends JavaPlugin {
     }
 
     private Settings readSettings() throws Exception {
-        File file=new File(getDataFolder(),"config.yml");
-        try(var input=getResource("config.yml")){
-            if(input!=null){
-                var defaults=new YamlConfiguration();defaults.load(new java.io.InputStreamReader(input,java.nio.charset.StandardCharsets.UTF_8));
-                if(ConfigMigration.migrate(file.toPath(),defaults))getLogger().info("Migrated config.yml; original backed up.");
-            }
-        }
-        YamlConfiguration cfg=new YamlConfiguration(); cfg.load(file);
+        var cfg=CategoryConfig.readRoot(getDataFolder().toPath());
         String endpointText=cfg.getString("endpoint","").trim();
         String mode=cfg.getString("mode",endpointText.isEmpty()?"pull":"push").trim().toLowerCase(java.util.Locale.ROOT);
         if(!mode.equals("push")&&!mode.equals("pull"))throw new IllegalArgumentException("mode must be push or pull");
@@ -223,7 +221,7 @@ public final class OrionBridge extends JavaPlugin {
         String token=cfg.getString("token","").trim();
         if(mode.equals("pull")&&token.isEmpty()){
             byte[] secret=new byte[32];new SecureRandom().nextBytes(secret);
-            token=HexFormat.of().formatHex(secret);cfg.set("token",token);cfg.save(file);
+            token=HexFormat.of().formatHex(secret);cfg.set("token",token);CategoryConfig.save(getDataFolder().toPath().resolve("config.yml"),cfg);
             getLogger().info("Generated a pull token in config.yml. Keep it private.");
         }
         if(!token.matches("[a-f0-9]{64}"))throw new IllegalArgumentException("Token must be 64 lowercase hexadecimal characters");

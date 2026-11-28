@@ -97,8 +97,9 @@ guard:
         regions: []
         # Empty operations = deny all guarded mutations. BLOCK, BIOME, ENTITY.
         operations: [BLOCK, BIOME, ENTITY]
-        # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
-      commands: []
+        # Temporary tasks require explicit command entries (e.g. worldedit:set).
+        # Empty commands = no temporary-task edit commands.
+        commands: []
     administrator:
       # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
       commands: ['minecraft:gamemode', 'luckperms:luckperms']
@@ -119,5 +120,6 @@ guard:
         regions: []
         # Empty operations = deny all guarded mutations. BLOCK, BIOME, ENTITY.
         operations: [BLOCK, BIOME, ENTITY]
-        # Exact resolved sensitive commands this profile may use, e.g. minecraft:gamemode.
-      commands: []
+        # Temporary tasks require explicit command entries (e.g. worldedit:set).
+        # Empty commands = no temporary-task edit commands.
+        commands: []
