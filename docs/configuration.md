@@ -6,7 +6,7 @@ The first startup creates the following files in plugins/OrionBridge. Read the c
 
 | File | Purpose |
 | --- | --- |
-| config.yml | Connection mode, transport (AUTO/HTTP/WEBSOCKET), bind, allocated port, managed token, telemetry and privacy. |
+| config.yml | Connection mode, transport (AUTO/HTTP/WEBSOCKET), bind, allocated port, legacy token import, telemetry and privacy. |
 | config/audit.yml | Signed activity/evidence, guild/server IDs and audit signing key. |
 | config/control.yml | Signed actions and its separate control key. Required for verification and chat. |
 | config/verification.yml | Optional account linking, independently required login gate, AuthMe realm, Java interface and optional lobby. |
@@ -90,3 +90,7 @@ Task requests use the existing local named profiles and separate signed, immutab
 ## Setup-managed settings
 
 The private setup process fills missing audit/control/network credentials and activates requested services. It journals approved changes, makes per-file backups and rejects mismatched existing credentials. Do not edit IDs or secrets unless intentionally recovering an existing pairing. Never delete the data folder to reset setup. `verification.force` defaults to true for existing configurations; the new optional-linking wizard writes false explicitly. `chat.require-link` defaults to true, and forced verification always overrides public unlinked chat. Private staff chat remains authorization-only. Both settings are additive; existing security policies and custom values are retained. The `transport: AUTO` listener accepts WebSocket and authenticated HTTP on the same port. `WEBSOCKET` requires that listener but still accepts authenticated HTTPS compatibility traffic. `HTTP` uses the original listener.
+
+## Private credentials and offline crossplay
+
+`internal/credentials.yml` is managed by the plugin. Legacy nonempty token, guild/server IDs and signing keys are imported once; conflicts with an existing private value are rejected. Backups contain secrets and must remain private. Do not remove the `credentials-managed` marker or reset the internal folder. A missing private file is a recovery error. `internal/setup.properties` stores short-lived pending requests and hashed claim capabilities, with the original expiry. New defaults are persisted additively on reload/startup. `verification.auto-authme-realm: true` assigns a unique server-scoped realm to an empty realm on an active offline AuthMe server. Set false only to intentionally disable automatic assignment; a nonempty explicit realm always wins. No changes are made to AuthMe, Geyser or Floodgate configuration.

@@ -29,6 +29,9 @@ public final class SetupConfigSmoke {
             put(dir.resolve("config/audit.yml"),"audit.signing-key","");
             check(!Files.exists(dir.resolve("setup-pending.yml")));check(!Files.exists(dir.resolve("internal/setup-pending.yml")));
             SetupConfig.recover(dir);
+            var privateFile=dir.resolve("internal/credentials.yml");var saved=Files.readAllBytes(privateFile);Files.delete(privateFile);
+            try{PairingCredentials.read(dir);throw new AssertionError("missing private store accepted");}catch(java.io.IOException expected){}
+            Files.write(privateFile,saved);
         }finally{try(var files=Files.walk(dir)){for(Path p:files.sorted(java.util.Comparator.reverseOrder()).toList())Files.deleteIfExists(p);}}
         System.out.println("SetupConfigSmoke passed");
     }

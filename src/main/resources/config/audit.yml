@@ -1,17 +1,15 @@
 # OrionBridge | Audit and evidence
-# Sends signed activity/evidence to OrionBot in Pull mode. Enable audit in the
-# Discord control center as well. This does not punish players by itself.
-# Automatic setup: use OrionBot's Setup → Automatic after running ob setup.
-# You should not need to manually edit the IDs or signing key.
-# Use /ob reload after changes. Keep the signing key private.
+# Choose Evidence in /orionbridge setup to enable this feature.
+# Observations are not punishments. Review evidence before approving cases.
 audit:
   enabled: false
-  # Copy these two IDs from Setup credentials in OrionBot. They identify this
-  # guild and Minecraft server and are also used by control.yml.
+
+  # Managed by setup; leave these blank. Older credentials are imported
+  # automatically into internal/credentials.yml and backed up.
   guild-id: ''
   server-id: ''
-  # Separate audit key from OrionBot; do not reuse the connection or control key.
   signing-key: ''
-  # Attempts per minute before recording a block-activity threshold event.
-  # This is an observation threshold, not the Guard enforcement limit.
+
+  # Record a block-activity observation at this many attempts per minute.
+  # This is separate from Guard's actual enforcement limits.
   block-changes-per-minute: 500

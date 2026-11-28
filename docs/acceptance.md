@@ -6,7 +6,9 @@ This development preview includes implementation and regression tests, not produ
 
 ## Live acceptance checklist
 
-- New install: pair without copying permanent credentials, reject wrong/expired codes and conflicting scopes, test cancel/retry, restart mid-pair, and compare the console requester and feature. Test private channel creation and group/role selection.
+- Verify private credential migration from a matched alpha.8 backup, conflict rejection, preserved keys and missing-private-file rejection. Verify offline Java with AuthMe, existing explicit realm preservation, realm isolation between servers, and Floodgate authenticated XUID on the same offline server.
+
+- New install: pair without copying permanent credentials, reject wrong/expired codes and conflicting scopes, test cancel/retry, restart each process before code submission, after staging, after approval and after a lost receipt, and compare the console requester and feature. Test private channel creation and group/role selection.
 - Test WebSocket and HTTP fallback through the actual proxy; reject unsigned, replayed and oversized requests; interrupt a mutation after send and reconcile its receipt without duplicate application.
 - Test optional linking (ordinary gameplay remains available), unlinked public chat, then explicitly activate forced linking after the linked test account is ready. Forced verification must still restrict OPs, expired sessions, unauthenticated Java and Bedrock players. Staff chat remains linked/authorized.
 

@@ -7,5 +7,5 @@ correlation:
   enabled: false
   # Confirm only after checking real client forwarding on your server.
   confirm-real-client-addresses: false
-  # Private shared guild correlation key. Keep it protected and stable.
+  # Legacy import only. Setup stores the shared guild key in internal/credentials.yml.
   guild-key: ''

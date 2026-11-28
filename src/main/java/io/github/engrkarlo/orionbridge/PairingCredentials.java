@@ -14,6 +14,7 @@ final class PairingCredentials {
         Path file=path(dir);
         if(Files.isSymbolicLink(file.getParent()))throw new IOException("Invalid private credential directory");
         var root=CategoryConfig.readRoot(dir);
+        if(root.contains("credentials-managed")&&!root.isBoolean("credentials-managed"))throw new IOException("Invalid credential migration marker");
         if(Files.notExists(file,LinkOption.NOFOLLOW_LINKS)){
             if(root.getBoolean("credentials-managed",false))throw new IOException("Private credentials missing; restore internal/credentials.yml from backup");
             return new YamlConfiguration();

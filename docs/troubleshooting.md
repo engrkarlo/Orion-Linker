@@ -68,3 +68,6 @@ If /ob reload reports busy, retry when the current signed work finishes. If the 
 - Pending setup is not active: confirm the displayed requester locally, approve, then click Check setup. If the plugin reports busy, run `ob reload` once idle.
 - HTTP works but WebSocket does not: check proxy Upgrade handling and idle timeouts. The bot can use authenticated HTTPS without an additional allocation. Use `transport: HTTP` if the new listener itself cannot start.
 - Wrong credentials: do not delete keys or existing identities. Restore matching backups or use the legacy private credential recovery instructions.
+
+- Pairing after restart: reopen `/orionbridge setup` and select the same server. Use the original code if the request receipt was lost. An expired code requires a new request. Never reset the internal credentials file to retry.
+- Offline Java cannot link: check AuthMe is installed and the player has authenticated. With automatic realm assignment enabled, a scoped offline server obtains its own realm; retain any previous custom realm. Floodgate must provide authenticated Bedrock account data; a prefix does not prove identity.

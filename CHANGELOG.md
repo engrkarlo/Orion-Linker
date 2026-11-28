@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-alpha.9 — crossplay and setup recovery
+
+- Automatically assign a stable per-server AuthMe realm for offline Java linking; preserve custom realms and resolve Floodgate identities by authenticated API, not name prefix.
+- Persist short-lived pairing requests and hashed claim receipts across restarts, with idempotent retry and original expiry.
+- Migrate legacy pairing credentials into private internal storage, retain protected backups, reject conflicts or missing private credentials, and persist additive defaults.
+- Add AuthMe namespace and durable pairing smoke checks, extend provisioning recovery checks, and build only the matching shaded plugin artifact.
+
+
 ## 2.0.0-alpha.8 — simple setup preview
 
 - Add private, console-approved pairing with short-lived codes and scoped credentials; no manual key exchange on matching builds.
