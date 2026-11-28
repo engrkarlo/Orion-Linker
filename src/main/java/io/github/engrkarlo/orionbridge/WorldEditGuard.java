@@ -43,7 +43,7 @@ final class WorldEditGuard implements AutoCloseable {
                 return permitted(location,true,false)&&super.setBiome(location,biome);
             }
             @Override public Entity createEntity(Location location,BaseEntity entity){
-                return permitted(location.toBlockPoint(),false,true)?super.createEntity(location,entity):null;
+                return permitted(location.toVector().toBlockPoint(),false,true)?super.createEntity(location,entity):null;
             }
         });
     }
