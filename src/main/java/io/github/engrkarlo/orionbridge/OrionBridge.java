@@ -67,7 +67,7 @@ public final class OrionBridge extends JavaPlugin {
     TextTheme messages(){return messages;}
     YamlConfiguration theme(String name){return java.util.Objects.requireNonNull(themes.get(name));}
     private OrionCommands commands;
-    private final SetupRequest setup=new SetupRequest();
+    private SetupRequest setup=new SetupRequest();
     private volatile String setupStatus="{}";
     String setupStatus(){return setupStatus;}
     void signal(String lane){var current=session;if(current!=null&&current.pull!=null)current.pull.signal(lane);}
@@ -101,6 +101,7 @@ public final class OrionBridge extends JavaPlugin {
         var command=getCommand("ob");if(command!=null){command.setExecutor(commands);command.setTabCompleter(commands);}
         try {
             var cfg=CategoryConfig.load(this);startupConfig=cfg;
+            setup=new SetupRequest(getDataFolder().toPath().resolve("internal/setup.properties"));
             var appearance=loadAppearance();setAppearance(appearance);
             Settings settings=readSettings(cfg,true);
             initialize(cfg,settings,null,false);
@@ -372,7 +373,7 @@ public final class OrionBridge extends JavaPlugin {
 
     private void stopSession(){
         if(task!=null){task.cancel();task=null;}
-        setup.cancelPending();Session old=session;session=null;
+        Session old=session;session=null;
         if(old!=null)old.close();
     }
 
@@ -381,7 +382,7 @@ public final class OrionBridge extends JavaPlugin {
         if(args.length==2&&args[1].equalsIgnoreCase("cancel")){setup.cancel();messages.send(sender,"setup.cancelled");return;}
         if(session==null||session.pull==null){messages.send(sender,"setup.unavailable");return;}
         long now=System.currentTimeMillis();
-        if(args.length==1){messages.send(sender,"setup.code","code",setup.open(now));return;}
+        if(args.length==1){messages.send(sender,"setup.code","code",setup.open(now,session.settings.token()));return;}
         if(args.length==2&&args[1].equalsIgnoreCase("status")){
             var request=setup.peek(now);
             if(request==null){messages.send(sender,"setup.none");return;}
@@ -389,7 +390,7 @@ public final class OrionBridge extends JavaPlugin {
             messages.send(sender,"setup.pending","id",request.id(),"guild",c.guild(),"server",c.server(),"actor",c.actor(),"feature",c.feature());return;
         }
         if(args.length==3&&args[1].equalsIgnoreCase("approve")){
-            var request=setup.consume(args[2],now);
+            var request=setup.pending(args[2],session.settings.token(),now);
             if(request==null){messages.send(sender,"setup.none");return;}
             try{
                 var c=request.credentials();
@@ -405,8 +406,8 @@ public final class OrionBridge extends JavaPlugin {
                 }
                 String originalToken=session.settings.token();
                 SetupConfig.provision(getDataFolder().toPath(),c,!getServer().getOnlineMode()&&installed("AuthMe"));
+                setup.approve(request,originalToken,System.currentTimeMillis());
                 var result=reloadAll();
-                if(session!=null&&session.pull!=null&&result!=ReloadResult.FAILED&&originalToken.equals(session.settings.token()))setup.approve(request,originalToken,System.currentTimeMillis());
                 messages.send(sender,result==ReloadResult.APPLIED?"setup.applied":"setup.reload-needed");
             }catch(Exception e){getLogger().warning("Setup could not apply: "+(e instanceof java.io.IOException?e.getMessage():"Invalid setup settings"));messages.send(sender,"setup.failed");}
             return;
@@ -573,5 +574,5 @@ public final class OrionBridge extends JavaPlugin {
         if(audit!=null){audit.close();audit=null;}
         recovery=null;control=null;
     }
-    @Override public void onDisable(){setup.cancel();stopServices();clearFallback();activeConfig=null;retainedGuard=null;}
+    @Override public void onDisable(){stopServices();clearFallback();activeConfig=null;retainedGuard=null;}
 }
